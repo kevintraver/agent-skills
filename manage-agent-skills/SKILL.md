@@ -110,9 +110,35 @@ This skill helps you:
 
 ## Common Workflows
 
-### Download a skill from URL
+### Install skills from GitHub (recommended)
 
-When the user asks to download/add/install a skill from a GitHub URL or any URL pointing to a SKILL.md file:
+Use `add-skill` to install skills from GitHub repositories. It handles multiple agents automatically.
+
+```bash
+# List available skills in a repo
+npx add-skill owner/repo --list
+
+# Install all skills from a repo globally
+npx add-skill owner/repo -g -y
+
+# Install specific skill(s) to specific agent(s)
+npx add-skill owner/repo -s skill-name -a claude-code -g -y
+
+# Install to current project (not global)
+npx add-skill owner/repo -s skill-name -y
+```
+
+**When to use `add-skill`:**
+- Installing from GitHub repos (supports `owner/repo`, full URLs, GitLab)
+- Installing to multiple agents at once
+- Discovering what skills are available in a repo
+- Quick installation without manual file management
+
+**Supported agents:** Claude Code, OpenCode, Codex CLI, Cursor, Gemini CLI, and more (14 total)
+
+### Download a single skill from URL
+
+When installing a single SKILL.md file from a direct URL (not a full repo):
 
 1. Fetch the raw content (convert GitHub blob URLs to raw.githubusercontent.com)
 2. Create the skill directory at `~/.claude/skills/<skill-name>/`
@@ -121,6 +147,11 @@ When the user asks to download/add/install a skill from a GitHub URL or any URL 
 
 Example: "add this skill https://github.com/user/repo/blob/main/skills/foo/SKILL.md"
 → Fetch raw content → Create `~/.claude/skills/foo/SKILL.md` → Done
+
+**When to use manual download:**
+- Single SKILL.md file from a direct URL
+- Custom or local skills not in a git repo
+- Need fine-grained control over installation location
 
 ### Install a skill to all agents
 
