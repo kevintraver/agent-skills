@@ -110,6 +110,18 @@ This skill helps you:
 
 ## Common Workflows
 
+### Download a skill from URL
+
+When the user asks to download/add/install a skill from a GitHub URL or any URL pointing to a SKILL.md file:
+
+1. Fetch the raw content (convert GitHub blob URLs to raw.githubusercontent.com)
+2. Create the skill directory at `~/.claude/skills/<skill-name>/`
+3. Write the SKILL.md file with proper frontmatter
+4. Report success with the skill name and how to invoke it
+
+Example: "add this skill https://github.com/user/repo/blob/main/skills/foo/SKILL.md"
+→ Fetch raw content → Create `~/.claude/skills/foo/SKILL.md` → Done
+
 ### Install a skill to all agents
 
 Given a skill at `~/my-skills/my-skill/`:
