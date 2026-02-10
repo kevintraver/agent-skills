@@ -16,7 +16,7 @@ Claude Code stores sessions in `~/.claude/projects/` with encoded folder names:
 
 Each project folder contains:
 - `sessions-index.json` - index of all conversations with metadata
-- `*.jsonl` files - individual conversation data
+- `*.jsonl` files - individual conversation data (includes `cwd` fields that must be updated)
 
 ## Two Migration Types
 
@@ -63,9 +63,18 @@ Use when: User renamed or moved their entire project directory.
      ~/.claude/projects/-Users-kevin-new-location-app/sessions-index.json
    ```
 
-5. **Verify**
+5. **Update working directory in all session files**
+   ```bash
+   # Update cwd fields in all .jsonl files
+   for file in ~/.claude/projects/-Users-kevin-new-location-app/*.jsonl; do
+     sd '"/Users/kevin/old-location/app"' '"/Users/kevin/new-location/app"' "$file"
+   done
+   ```
+
+6. **Verify**
    ```bash
    cat ~/.claude/projects/-Users-kevin-new-location-app/sessions-index.json | rg 'projectPath|fullPath'
+   head -5 ~/.claude/projects/-Users-kevin-new-location-app/*.jsonl | rg '"cwd":'
    ```
 
 ---
@@ -101,13 +110,20 @@ Use when: User wants to move a specific conversation from one project to another
       ~/.claude/projects/-TARGET-PROJECT/
    ```
 
-5. **Read the session entry from source sessions-index.json**
+5. **Update working directory in the session file**
+   ```bash
+   # Update all cwd fields in the moved session file
+   sd '"/path/to/source/project"' '"/path/to/target/project"' \
+     ~/.claude/projects/-TARGET-PROJECT/SESSION_ID.jsonl
+   ```
+
+6. **Read the session entry from source sessions-index.json**
    ```bash
    cat ~/.claude/projects/-SOURCE-PROJECT/sessions-index.json | rg 'SESSION_ID' -A15
    ```
    Copy the full entry object.
 
-6. **Update target sessions-index.json**
+7. **Update target sessions-index.json**
 
    Read the target's sessions-index.json (create if doesn't exist):
    ```json
@@ -122,10 +138,14 @@ Use when: User wants to move a specific conversation from one project to another
    - `projectPath`: change to target project directory
    - `gitBranch`: set to `""` or the target project's branch
 
-7. **Verify**
+8. **Remove entry from source sessions-index.json**
+   Use the Edit tool to remove the entry from the source project's sessions-index.json.
+
+9. **Verify**
    ```bash
    ls ~/.claude/projects/-TARGET-PROJECT/
    cat ~/.claude/projects/-TARGET-PROJECT/sessions-index.json
+   head -5 ~/.claude/projects/-TARGET-PROJECT/SESSION_ID.jsonl | rg '"cwd":'
    ```
 
 ### Example: Move conversation from ~/.dotfiles to ~/Code/my-new-project
@@ -146,10 +166,19 @@ mkdir -p ~/.claude/projects/-Users-kevin-Code-my-new-project
 mv ~/.claude/projects/-Users-kevin--dotfiles/a1b2c3d4-5678-90ab-cdef-1234567890ab.jsonl \
    ~/.claude/projects/-Users-kevin-Code-my-new-project/
 
-# 5-6. Update sessions-index.json using Read/Write tools
+# 5. Update working directory in the session file
+sd '"/Users/kevin/.dotfiles"' '"/Users/kevin/Code/my-new-project"' \
+   ~/.claude/projects/-Users-kevin-Code-my-new-project/a1b2c3d4-5678-90ab-cdef-1234567890ab.jsonl
+
+# 6-7. Update sessions-index.json using Read/Write tools
 # Add entry with:
 #   fullPath: /Users/kevin/.claude/projects/-Users-kevin-Code-my-new-project/a1b2c3d4-...jsonl
 #   projectPath: /Users/kevin/Code/my-new-project
+
+# 8. Remove entry from source sessions-index.json
+
+# 9. Verify
+head -5 ~/.claude/projects/-Users-kevin-Code-my-new-project/a1b2c3d4-5678-90ab-cdef-1234567890ab.jsonl | rg '"cwd":'
 ```
 
 ---
