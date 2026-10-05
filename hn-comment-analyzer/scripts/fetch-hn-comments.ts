@@ -20,19 +20,21 @@ const HTML_TAG_REGEX = /<[^>]*>?/gm;
 
 type HNItem = {
 	id: number;
-	author: string;
+	author: string | null;
 	title?: string;
 	url?: string;
-	text?: string;
-	points?: number;
-	children?: HNItem[];
+	text?: string | null;
+	points?: number | null;
+	deleted?: boolean;
+	dead?: boolean;
+	children?: (HNItem | null)[] | null;
 };
 
 type HNComment = {
 	id: number;
-	author: string;
-	points?: number;
-	text?: string;
+	author: string | null;
+	points?: number | null;
+	text: string;
 	children?: HNComment[];
 };
 
@@ -40,8 +42,8 @@ type HNResult = {
 	id: number;
 	title?: string;
 	url?: string;
-	points?: number;
-	author: string;
+	points?: number | null;
+	author: string | null;
 	comments: HNComment[];
 };
 
@@ -58,26 +60,29 @@ function extractId(input: string): string {
 	return match ? match[1] : input;
 }
 
-function processComments(item: HNItem): HNComment | null {
-	if (!item) return null;
+function processComments(item: HNItem | null): HNComment[] {
+	if (!item) return [];
+
+	const children = (item.children ?? []).flatMap(processComments);
+	const text = stripHtml(item.text ?? "").trim();
+
+	// Promote readable replies instead of dropping a filtered parent's subtree.
+	if (item.deleted || item.dead || !text || /^\[(deleted|dead)\]$/i.test(text)) {
+		return children;
+	}
 
 	const result: HNComment = {
 		id: item.id,
 		author: item.author,
 		points: item.points,
+		text,
 	};
 
-	if (item.text) {
-		result.text = stripHtml(item.text);
+	if (children.length > 0) {
+		result.children = children;
 	}
 
-	if (item.children && item.children.length > 0) {
-		result.children = item.children
-			.map(processComments)
-			.filter((child): child is HNComment => child !== null);
-	}
-
-	return result;
+	return [result];
 }
 
 async function fetchHnComments(input: string): Promise<HNResult> {
@@ -91,9 +96,7 @@ async function fetchHnComments(input: string): Promise<HNResult> {
 
 	const data: HNItem = await response.json();
 
-	const comments = (data.children ?? [])
-		.map(processComments)
-		.filter((c): c is HNComment => c !== null);
+	const comments = (data.children ?? []).flatMap(processComments);
 
 	return {
 		id: data.id,

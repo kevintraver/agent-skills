@@ -26,13 +26,15 @@ Also works with bun: `bun run ./scripts/fetch-hn-comments.ts "<url-or-id>"`
 
 The script outputs JSON with the post metadata and nested comment tree.
 
+Algolia comment `points` may be null or missing and are not a reliable basis for upvote rankings, point distributions, or claims of community agreement. Story points describe the post, not individual comments. Base the summary on recurring themes, substantive arguments, and reply activity.
+
 ## Summarization Workflow
 
 1. **Fetch**: Run the script with the user's URL/ID
 2. **Analyze**: Parse the JSON output, noting:
-   - Total comment count and depth of discussion
+   - Returned readable comment count and depth of discussion (filtered parents can shorten reply chains)
    - Top-level comment themes
-   - Points distribution (higher = more agreement)
+   - Recurring perspectives and the arguments supporting them
    - Nested reply chains (indicate debate/discussion)
 3. **Summarize**: Generate the summary following the output format below
 
@@ -43,12 +45,12 @@ Structure your summary as follows:
 ### Main Takeaways
 
 - 3-5 bullet points capturing the dominant themes/opinions
-- Lead with the most upvoted perspectives
+- Lead with recurring themes and substantive perspectives
 
 ### Sentiment Overview
 
 - General tone (positive/negative/mixed/technical)
-- Level of consensus vs. disagreement
+- Apparent agreement vs. disagreement in the available comments; do not infer community consensus from scores or reply counts
 
 ### Notable Points
 
@@ -63,11 +65,12 @@ Structure your summary as follows:
 
 ## Tips
 
-- **High-point comments**: Usually represent community consensus
+- **Comment scores**: Do not rank perspectives by upvotes or treat missing/null points as zero
 - **Deep reply chains**: Often contain nuanced debate or corrections
 - **Comments with no replies**: May be late additions or niche takes
 - **Author replies**: The original poster's comments are especially relevant
-- **Deleted/dead comments**: Ignore these, they're filtered out
+- **Deleted/dead or unusable comments**: The script filters explicit `deleted`/`dead` flags, `[deleted]`/`[dead]` placeholders, and missing or blank text after stripping HTML. Readable descendants are promoted to the nearest retained ancestor (or the top level).
+- **Moderation limits**: Algolia may omit moderation flags or items, so this filtering cannot identify every deleted/dead comment or establish moderation totals. Describe only the available readable discussion; do not interpret missing text as proof of deletion or claim all dead comments were removed.
 
 ## Error Handling
 
