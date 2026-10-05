@@ -1,6 +1,6 @@
 ---
 name: hn-comment-analyzer
-description: Fetches and summarizes Hacker News comment threads. Use when the user asks to "summarize HN comments", "summarize Hacker News discussion", "what are people saying on HN", "analyze HN thread", "fetch HN comments", or provides a news.ycombinator.com URL.
+description: Finds Hacker News stories by title and fetches and summarizes their comment threads. Use when the user asks to "summarize HN comments", "summarize Hacker News discussion", "what are people saying on HN", "analyze HN thread", "fetch HN comments", or provides an HN story title, item ID, or news.ycombinator.com URL.
 ---
 
 # HN Comment Analyzer
@@ -12,7 +12,7 @@ Fetch and summarize Hacker News discussions using the Algolia API.
 **IMPORTANT: ALWAYS quote the argument to prevent shell glob expansion.**
 
 ```bash
-npx tsx ./scripts/fetch-hn-comments.ts "<url-or-id>"
+npx tsx ./scripts/fetch-hn-comments.ts "<url-or-id-or-title>"
 ```
 
 **Examples:**
@@ -20,9 +20,15 @@ npx tsx ./scripts/fetch-hn-comments.ts "<url-or-id>"
 ```bash
 npx tsx ./scripts/fetch-hn-comments.ts "https://news.ycombinator.com/item?id=46654726"
 npx tsx ./scripts/fetch-hn-comments.ts "46654726"
+npx tsx ./scripts/fetch-hn-comments.ts "Ask HN: Is it still worth pursuing a software startup?"
+npx tsx ./scripts/fetch-hn-comments.ts --title "1984"
 ```
 
-Also works with bun: `bun run ./scripts/fetch-hn-comments.ts "<url-or-id>"`
+Also works with bun: `bun run ./scripts/fetch-hn-comments.ts "<url-or-id-or-title>"`
+
+For a title or title fragment, the script uses [HN Search](https://hn.algolia.com/) to search story titles only. Among the first 50 results, it prefers an exact title match ignoring case and extra whitespace; otherwise it chooses HN Search's highest-ranked result. Duplicate exact titles retain HN Search's ordering. Use `--title` to search a title that looks like a numeric ID or URL.
+
+The selected title and HN item link are printed to stderr; stdout remains JSON. Check the returned title before summarizing and include the matched HN link when starting from a title. If it is the wrong thread, refine the title or use the intended thread's ID/link.
 
 The script outputs JSON with the post metadata and nested comment tree.
 
@@ -30,7 +36,7 @@ Algolia comment `points` may be null or missing and are not a reliable basis for
 
 ## Summarization Workflow
 
-1. **Fetch**: Run the script with the user's URL/ID
+1. **Fetch**: Run the script with the user's URL, ID, or title; verify the selected story for title searches
 2. **Analyze**: Parse the JSON output, noting:
    - Returned readable comment count and depth of discussion (filtered parents can shorten reply chains)
    - Top-level comment themes
@@ -77,6 +83,8 @@ Structure your summary as follows:
 If the script fails:
 
 - **"no matches found"**: URL wasn't quoted - always wrap URLs in double quotes
+- **"No HN stories found for title"**: Try a shorter title fragment or provide the HN item URL/ID
+- **"Failed to search HN titles"**: HN Search failed; retry after a moment or use a known item URL/ID
 - Verify the URL is a valid HN item URL (news.ycombinator.com/item?id=...)
 - Check the item ID exists (some items are deleted)
 - The Algolia API may have rate limits; retry after a moment
