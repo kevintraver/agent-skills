@@ -7,6 +7,7 @@ use the account's default server. Standard library only.
 """
 
 import argparse
+import datetime
 import json
 import os
 import sys
@@ -84,9 +85,39 @@ def resolve_devices(values):
     return ids
 
 
-def fetch_log(minutes, statuses=None, search=None, devices=None, servers=None, max_items=5000):
+def parse_time(value):
+    try:
+        dt = datetime.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        sys.exit(f"Invalid time '{value}'. Use local 'YYYY-MM-DD HH:MM' (or ISO 8601 with an offset).")
+    return int(dt.astimezone().timestamp() * 1000)
+
+
+def local(millis, fmt="%Y-%m-%d %H:%M"):
+    return datetime.datetime.fromtimestamp(millis / 1000).strftime(fmt)
+
+
+def local_iso(millis):
+    return datetime.datetime.fromtimestamp(millis / 1000).astimezone().isoformat(timespec="seconds")
+
+
+def time_window(args):
+    """Return (from_millis, to_millis, description) from --from/--to or --minutes."""
     now = int(time.time() * 1000)
-    params = {"time_from_millis": now - minutes * 60_000, "time_to_millis": now, "limit": 1000}
+    if args.start:
+        start = parse_time(args.start)
+        end = parse_time(args.end) if args.end else now
+        if start >= end:
+            sys.exit("--from must be earlier than --to.")
+        return start, end, f"between {local(start)} and {local(end)}"
+    if args.end:
+        sys.exit("--to requires --from.")
+    return now - args.minutes * 60_000, now, f"in the last {args.minutes} minutes"
+
+
+def fetch_log(window, statuses=None, search=None, devices=None, servers=None, max_items=5000):
+    """Return (items, truncated), newest first."""
+    params = {"time_from_millis": window[0], "time_to_millis": window[1], "limit": min(1000, max_items)}
     if statuses:
         params["statuses"] = statuses
     if search:
@@ -101,8 +132,9 @@ def fetch_log(minutes, statuses=None, search=None, devices=None, servers=None, m
         items.extend(data["items"])
         pages = data.get("pages") or []
         idx = next((i for i, p in enumerate(pages) if p.get("current")), None)
-        if idx is None or idx + 1 >= len(pages) or len(items) >= max_items:
-            return items[:max_items]
+        more = idx is not None and idx + 1 < len(pages)
+        if not more or len(items) >= max_items:
+            return items[:max_items], more or len(items) > max_items
         params["cursor"] = pages[idx + 1]["page_cursor"]
 
 
@@ -112,7 +144,7 @@ def ago(millis):
         return "just now"
     if mins < 60:
         return f"{mins}m ago"
-    return f"{mins // 60}h{mins % 60:02d}m ago"
+    return local(millis)
 
 
 def cmd_servers(args):
@@ -141,7 +173,8 @@ def cmd_devices(args):
 def cmd_blocked(args):
     server = explicit_server(args.server)
     servers = [server] if server else None
-    items = fetch_log(args.minutes, BLOCKED_STATUSES, args.search, resolve_devices(args.device), servers)
+    window = time_window(args)
+    items, truncated = fetch_log(window, BLOCKED_STATUSES, args.search, resolve_devices(args.device), servers)
     names = device_names() if items else {}
     groups = {}
     for it in items:
@@ -157,13 +190,17 @@ def cmd_blocked(args):
         g["devices"].add(names.get(it.get("device_id"), it.get("device_id")))
     rows = sorted(groups.values(), key=lambda g: g["last_millis"], reverse=True)
     for g in rows:
+        g["last_seen"] = local_iso(g["last_millis"])
         g["rules"] = sorted(g["rules"])
         g["devices"] = sorted(d for d in g["devices"] if d)
 
     def text():
         if not rows:
-            return f"No blocked queries in the last {args.minutes} minutes."
-        out = [f"{len(rows)} blocked root domains ({len(items)} queries) in the last {args.minutes} minutes:\n"]
+            return f"No blocked queries {window[2]}."
+        out = [f"{len(rows)} blocked root domains ({len(items)} queries) {window[2]}:"]
+        if truncated:
+            out.append(f"(stopped at the newest {len(items)} queries; narrow the window to see earlier ones)")
+        out.append("")
         for g in rows:
             out.append(f"{g['root']}  ({g['attempts']} queries, last {ago(g['last_millis'])}; {', '.join(g['devices'])})")
             for sub, n in sorted(g["subdomains"].items(), key=lambda kv: -kv[1]):
@@ -180,11 +217,12 @@ def cmd_log(args):
     server = explicit_server(args.server)
     servers = [server] if server else None
     statuses = [s.upper() for s in args.status] if args.status else None
-    items = fetch_log(args.minutes, statuses, args.search, resolve_devices(args.device), servers, args.limit)
+    window = time_window(args)
+    items, truncated = fetch_log(window, statuses, args.search, resolve_devices(args.device), servers, args.limit)
     names = device_names() if items else {}
     rows = [
         {
-            "time": it["time_iso"],
+            "time": local_iso(it["time_millis"]),
             "domain": it["domain"],
             "type": it.get("dns_request_type"),
             "status": (it.get("filtering_info") or {}).get("filtering_status"),
@@ -193,10 +231,19 @@ def cmd_log(args):
         }
         for it in items
     ]
-    emit(args, rows, lambda: "\n".join(
-        f"{r['time']}  {r['status'] or '-':<17} {r['type'] or '':<6} {r['domain']}  [{r['device']}]"
-        + (f"  rule: {r['rule']}" if r["rule"] else "")
-        for r in rows) or "No matching queries.")
+    def text():
+        if not rows:
+            return f"No matching queries {window[2]}."
+        lines = [
+            f"{r['time'][:19].replace('T', ' ')}  {r['status'] or '-':<17} {r['type'] or '':<6} {r['domain']}  [{r['device']}]"
+            + (f"  rule: {r['rule']}" if r["rule"] else "")
+            for r in rows
+        ]
+        if truncated:
+            lines.append(f"(showing the newest {len(rows)}; raise --limit or narrow the window for more)")
+        return "\n".join(lines)
+
+    emit(args, rows, text)
 
 
 def get_rules(server_id):
@@ -288,13 +335,17 @@ def main():
     command("devices", "list devices").set_defaults(fn=cmd_devices)
 
     b = command("blocked", "blocked queries grouped by root domain", query_server)
-    b.add_argument("--minutes", type=int, default=15)
+    b.add_argument("--minutes", type=int, default=15, help="window ending now (default 15)")
+    b.add_argument("--from", dest="start", help="window start, local time 'YYYY-MM-DD HH:MM' (overrides --minutes)")
+    b.add_argument("--to", dest="end", help="window end, local time (default: now)")
     b.add_argument("--search", help="only domains containing this text")
     b.add_argument("--device", action="append", help="device name or ID (repeatable)")
     b.set_defaults(fn=cmd_blocked)
 
     lg = command("log", "raw query log, newest first", query_server)
-    lg.add_argument("--minutes", type=int, default=15)
+    lg.add_argument("--minutes", type=int, default=15, help="window ending now (default 15)")
+    lg.add_argument("--from", dest="start", help="window start, local time 'YYYY-MM-DD HH:MM' (overrides --minutes)")
+    lg.add_argument("--to", dest="end", help="window end, local time (default: now)")
     lg.add_argument("--search", help="only domains containing this text")
     lg.add_argument("--device", action="append", help="device name or ID (repeatable)")
     lg.add_argument("--status", action="append",
