@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """AdGuard DNS (private DNS service) CLI: inspect query logs and manage user rules.
 
-Auth: ADGUARD_DNS_API_KEY (required), ADGUARD_DNS_SERVER_ID (optional; defaults to
-the account's default DNS server). Standard library only.
+Auth: ADGUARD_DNS_API_KEY (required). ADGUARD_DNS_SERVER_ID (optional) scopes all
+commands to one server; without it, log queries cover every server and rule commands
+use the account's default server. Standard library only.
 """
 
 import argparse
@@ -50,8 +51,12 @@ def clean_domain(value):
     return value.strip().removeprefix("@@").removeprefix("||").rstrip("^").rstrip(".").lower()
 
 
+def explicit_server(server_arg):
+    return server_arg or os.environ.get("ADGUARD_DNS_SERVER_ID", "").strip() or None
+
+
 def resolve_server(server_arg):
-    server_id = server_arg or os.environ.get("ADGUARD_DNS_SERVER_ID", "").strip()
+    server_id = explicit_server(server_arg)
     if server_id:
         return server_id
     servers = api("GET", "/oapi/v1/dns_servers")
@@ -134,7 +139,8 @@ def cmd_devices(args):
 
 
 def cmd_blocked(args):
-    servers = [args.server] if args.server else None
+    server = explicit_server(args.server)
+    servers = [server] if server else None
     items = fetch_log(args.minutes, BLOCKED_STATUSES, args.search, resolve_devices(args.device), servers)
     names = device_names() if items else {}
     groups = {}
@@ -171,7 +177,8 @@ def cmd_blocked(args):
 
 
 def cmd_log(args):
-    servers = [args.server] if args.server else None
+    server = explicit_server(args.server)
+    servers = [server] if server else None
     statuses = [s.upper() for s in args.status] if args.status else None
     items = fetch_log(args.minutes, statuses, args.search, resolve_devices(args.device), servers, args.limit)
     names = device_names() if items else {}
@@ -267,23 +274,26 @@ def emit(args, data, text):
 def main():
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--json", action="store_true", help="machine-readable output")
-    common.add_argument("--server", help="DNS server ID (default: $ADGUARD_DNS_SERVER_ID or the account default)")
+    query_server = argparse.ArgumentParser(add_help=False)
+    query_server.add_argument("--server", help="DNS server ID (default: $ADGUARD_DNS_SERVER_ID, otherwise all servers)")
+    rule_server = argparse.ArgumentParser(add_help=False)
+    rule_server.add_argument("--server", help="DNS server ID (default: $ADGUARD_DNS_SERVER_ID, otherwise the account default)")
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    def command(name, help):
-        return sub.add_parser(name, help=help, parents=[common])
+    def command(name, help, server=None):
+        return sub.add_parser(name, help=help, parents=[common] + ([server] if server else []))
 
     command("servers", "list DNS servers").set_defaults(fn=cmd_servers)
     command("devices", "list devices").set_defaults(fn=cmd_devices)
 
-    b = command("blocked", "blocked queries grouped by root domain")
+    b = command("blocked", "blocked queries grouped by root domain", query_server)
     b.add_argument("--minutes", type=int, default=15)
     b.add_argument("--search", help="only domains containing this text")
     b.add_argument("--device", action="append", help="device name or ID (repeatable)")
     b.set_defaults(fn=cmd_blocked)
 
-    lg = command("log", "raw query log, newest first")
+    lg = command("log", "raw query log, newest first", query_server)
     lg.add_argument("--minutes", type=int, default=15)
     lg.add_argument("--search", help="only domains containing this text")
     lg.add_argument("--device", action="append", help="device name or ID (repeatable)")
@@ -292,18 +302,18 @@ def main():
     lg.add_argument("--limit", type=int, default=200)
     lg.set_defaults(fn=cmd_log)
 
-    r = command("rules", "list user rules")
+    r = command("rules", "list user rules", rule_server)
     r.add_argument("--search", help="only rules containing this text")
     r.set_defaults(fn=cmd_rules)
 
     for name, allow, desc in [("allow", True, "add @@||domain^ allow rules"), ("block", False, "add ||domain^ block rules")]:
-        c = command(name, f"{desc} (root domain unless --exact)")
+        c = command(name, f"{desc} (root domain unless --exact)", rule_server)
         c.add_argument("domains", nargs="+")
         c.add_argument("--exact", action="store_true", help="use the domain as given instead of its root domain")
         c.add_argument("--dry-run", action="store_true")
         c.set_defaults(fn=lambda a, allow=allow: change_rules(a, allow))
 
-    rm = command("remove-rule", "remove user rules by exact text")
+    rm = command("remove-rule", "remove user rules by exact text", rule_server)
     rm.add_argument("rules", nargs="+")
     rm.add_argument("--dry-run", action="store_true")
     rm.set_defaults(fn=cmd_remove_rule)

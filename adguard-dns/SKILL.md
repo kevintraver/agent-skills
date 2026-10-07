@@ -26,7 +26,7 @@ Pass `--json` for structured output. Requires only Python 3.9+.
 ## Credentials
 
 - `ADGUARD_DNS_API_KEY` (required): created in the AdGuard DNS dashboard under **User preferences → API keys**. Sent as `Authorization: ApiKey <key>`; it doesn't expire. If it isn't set, find the key with a password-manager skill if one is available (search for an AdGuard DNS API key) and pass it to the script as this variable without printing it. Otherwise, ask the user to set it. Never print the key.
-- `ADGUARD_DNS_SERVER_ID` (optional): rule commands otherwise use the account's default DNS server. If the account has several servers and none is default, run `servers` and pass `--server`.
+- `ADGUARD_DNS_SERVER_ID` (optional): which DNS server to use; `--server` overrides it. Without either, `blocked` and `log` search every server, and rule commands use the account's default DNS server. If the account has several servers and none is default, rule commands stop; run `servers` and pass `--server`.
 
 ## Troubleshooting a broken site or app
 
