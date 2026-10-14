@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -23,6 +24,7 @@ class CleanNodeTests(unittest.TestCase):
         self.env = dict(os.environ, HOME=str(self.home), PATH=f"{self.bin}:{os.environ['PATH']}")
         self.env.pop("GIT_DIR", None)
         self.env.pop("GIT_WORK_TREE", None)
+        self.stub("pnpm", "exit 0\n")
 
     def command(self, *args):
         return subprocess.run(args, env=self.env, text=True, capture_output=True)
@@ -44,6 +46,12 @@ class CleanNodeTests(unittest.TestCase):
     def init_repo(self, root, file):
         self.assertEqual(self.command("git", "init", "-q", str(root)).returncode, 0)
         self.assertEqual(self.command("git", "-C", str(root), "add", "-f", str(file)).returncode, 0)
+
+    def plan(self, *args):
+        destination = self.base / "plan.json"
+        result = self.clean("--plan", destination, *args, self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return destination
 
     def test_lists_untracked_targets_without_deleting(self):
         target = self.target()
@@ -122,6 +130,112 @@ class CleanNodeTests(unittest.TestCase):
         result = self.clean(self.root)
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("Dry run", result.stdout)
+
+    def test_delete_requires_a_saved_plan(self):
+        target = self.target()
+        result = self.clean("--delete", self.root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(target.exists())
+
+    def test_deletes_only_saved_targets_and_honors_exclusions(self):
+        approved = self.target("approved/node_modules")
+        excluded = self.target("active/node_modules")
+        also_excluded = self.target("also-active/.next")
+        plan = self.plan("--exclude", "active", "--exclude", also_excluded.parent)
+        new = self.target("added-after-preview/.next")
+        preview = self.clean("--from-plan", plan)
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        self.assertTrue(approved.exists())
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(approved.exists())
+        for kept in (excluded, also_excluded, new):
+            self.assertTrue(kept.exists())
+
+    def test_plan_round_trips_unusual_filenames(self):
+        target = self.target('spaces "quotes"\ttab\nnewline/node_modules')
+        plan = self.plan()
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(target.exists())
+
+    def test_changed_target_aborts_before_any_deletion(self):
+        first = self.target("a/node_modules")
+        changed = self.target("z/.next")
+        plan = self.plan()
+        changed.rename(changed.with_name("old-next"))
+        changed.mkdir()
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("changed since preview", result.stderr)
+        self.assertTrue(first.exists())
+        self.assertTrue(changed.exists())
+
+    def test_missing_target_aborts_before_any_deletion(self):
+        first = self.target("a/node_modules")
+        missing = self.target("z/.next")
+        plan = self.plan()
+        missing.rename(missing.with_name("moved-next"))
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(first.exists())
+
+    def test_symlink_replacement_is_rejected(self):
+        target = self.target()
+        plan = self.plan()
+        moved = target.with_name("moved")
+        target.rename(moved)
+        target.symlink_to(moved, target_is_directory=True)
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue((moved / "fixture.txt").exists())
+
+    def test_newly_tracked_content_is_rejected(self):
+        target = self.target()
+        self.command("git", "init", "-q", str(self.root))
+        plan = self.plan()
+        self.command("git", "-C", str(self.root), "add", "-f", str(target / "fixture.txt"))
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Git content", result.stderr)
+        self.assertTrue(target.exists())
+
+    def test_refuses_overwriting_a_plan(self):
+        self.target()
+        plan = self.plan()
+        original = plan.read_bytes()
+        self.target("new/.next")
+        result = self.clean("--plan", plan, self.root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(plan.read_bytes(), original)
+
+    def test_rejects_plan_inside_deletion_target(self):
+        target = self.target()
+        result = self.clean("--plan", target / "plan.json", self.root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((target / "plan.json").exists())
+
+    def test_rejects_malformed_and_out_of_scope_plans(self):
+        target = self.target()
+        plan = self.plan()
+        original = json.loads(plan.read_text())
+        outside = json.loads(plan.read_text())
+        outside["targets"][0]["path"] = str(self.base / "node_modules")
+        for contents in ("{", "[]", json.dumps(outside), json.dumps({**original, "targets": [None]})):
+            with self.subTest(contents=contents):
+                plan.write_text(contents)
+                result = self.clean("--delete", "--from-plan", plan)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(target.exists())
+
+    def test_plan_cannot_be_combined_with_scan_options(self):
+        target = self.target()
+        plan = self.plan()
+        for args in (("--days", "0"), (self.root,), ("--exclude", "project"), ("--plan", "other.json")):
+            with self.subTest(args=args):
+                result = self.clean("--delete", "--from-plan", plan, *args)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(target.exists())
 
 
 if __name__ == "__main__":

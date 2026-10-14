@@ -24,10 +24,18 @@ link it: `ln -s <skill-directory>/scripts/clean-node ~/.local/bin/clean-node`.
 Requires Python 3.9+, Git, and `du`; invoke it directly, not with `bash`.
 
 ```bash
-clean-node [--delete] [--days N] [dir]    # dir defaults to ~/Code
+clean-node [--days N] [--exclude PATH ...] [--plan FILE] [dir]  # default: ~/Code
+clean-node --from-plan FILE             # review saved targets
+clean-node --delete --from-plan FILE    # apply only after approval
 ```
 
 - Dry run unless `--delete`: lists matches largest first, with a total.
+- Deletion requires a saved plan: it never rescans for additional targets.
+  Plans record absolute paths and directory identities/mtimes. Changed, missing,
+  redirected, or newly Git-protected targets abort deletion. Keep projects idle
+  during cleanup; this is not a lock against concurrent installs or builds.
+- `--exclude PATH` skips a project or target directory. Relative paths are
+  relative to the scan root; repeat the option for multiple exclusions.
 - `--days N` only matches folders whose own mtime is older than N days.
   It does not establish project inactivity: source edits and nested file edits
   can leave that timestamp unchanged.
@@ -55,20 +63,21 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
    Run `clean-node` per root. Never pass `~`: it would hit installed tools whose
    `node_modules` are the program (Neovim Mason, `~/.bun/install/global`, mise's
    global npm packages, editor extensions) and break them.
-3. Dry run each root with `--days 30` (omit it only if the user wants
-   everything) and show the output. On "Nothing to clean", offer a run without
-   `--days`.
-4. Leave out projects with a running dev server, whose `node_modules`/`.next`
+3. Leave out projects with a running dev server, whose `node_modules`/`.next`
    are in use:
 
    ```bash
    lsof -a -d cwd -c node -c bun -Fn 2>/dev/null | sed -n 's/^n//p' | sort -u
    ```
 
-5. Get approval for all or some. To exclude projects, run `--delete` only on
-   the other roots or `rm -rf` the approved paths from the dry-run list; don't
-   edit the script for one-offs.
-6. Delete (same arguments plus `--delete`), re-run `df`, and report the space
+4. Preview each root with `--days 30 --plan /tmp/cleanup-<unique-name>.json`
+   and `--exclude` for each active or unwanted project. Omit `--days` only if
+   the user wants everything. Show the output; on "Nothing to clean", offer
+   a run without `--days`. Plans must be new files outside deletion targets.
+5. Get approval for the exact paths. If the selection changes, create and
+   review a new plan with exclusions; don't hand-edit plans or use manual
+   `rm -rf`. `clean-node --from-plan FILE` rechecks and displays a saved plan.
+6. Run `clean-node --delete --from-plan FILE`, re-run `df`, and report the space
    freed. Mention that `pnpm install` (or npm/bun) restores a project and
    `next dev`/`next build` recreates `.next`.
 

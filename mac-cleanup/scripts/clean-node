@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import time
@@ -79,13 +80,14 @@ def eligible(path):
     return True
 
 
-def scan(root, days):
+def scan(root, days, exclusions):
     found = []
     cutoff = None if days is None else time.time() - days * 86400
     for current, directories, _ in os.walk(root, onerror=walk_error, followlinks=False):
         for name in sorted(directories[:]):
             path = Path(current) / name
-            if name == ".git" or path.is_symlink() or is_protected(path):
+            if (name == ".git" or path.is_symlink() or is_protected(path)
+                    or any(path == excluded or excluded in path.parents for excluded in exclusions)):
                 directories.remove(name)
             elif name in TARGETS:
                 directories.remove(name)
@@ -106,25 +108,103 @@ def show_candidates(paths):
     print(f"{sum(size for size, _ in sizes):>10,} KiB  total ({len(paths)} folders; not predicted freed space)")
 
 
+def fingerprint(path):
+    metadata = path.stat()
+    return [metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns]
+
+
+def save_plan(destination, root, paths):
+    destination = Path(destination).expanduser().resolve()
+    if any(path == destination or path in destination.parents for path in paths):
+        raise ValueError("Save the plan outside the folders being deleted")
+    plan = {
+        "version": 1,
+        "root": str(root),
+        "targets": [{"path": str(path), "fingerprint": fingerprint(path)} for path in paths],
+    }
+    with destination.open("x") as output:
+        json.dump(plan, output, indent=2)
+        output.write("\n")
+    print(f"Plan saved: {destination}")
+    print(f"After approval: clean-node --delete --from-plan {shlex.quote(str(destination))}")
+
+
+def check_target(root, entry):
+    if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+        raise ValueError("Invalid target in cleanup plan")
+    path = Path(entry["path"])
+    if (not path.is_absolute() or root not in path.parents or path.name not in TARGETS
+            or ".git" in path.relative_to(root).parts or is_protected(path)):
+        raise ValueError(f"Invalid cleanup target: {path}")
+    if path.resolve(strict=True) != path or not path.is_dir():
+        raise ValueError(f"Target is no longer a regular directory at the approved path: {path}")
+    if fingerprint(path) != entry.get("fingerprint"):
+        raise ValueError(f"Target changed since preview; create and review a new plan: {path}")
+    if not eligible(path):
+        raise ValueError(f"Target now contains Git content; create and review a new plan: {path}")
+    return path
+
+
+def read_plan(source):
+    with Path(source).expanduser().open() as input_file:
+        plan = json.load(input_file)
+    if (not isinstance(plan, dict) or plan.get("version") != 1
+            or not isinstance(plan.get("root"), str) or not isinstance(plan.get("targets"), list)):
+        raise ValueError("Invalid cleanup plan format")
+    root = validate_root(plan["root"])
+    if str(root) != plan["root"]:
+        raise ValueError("Plan root changed since preview")
+    paths = [check_target(root, entry) for entry in plan["targets"]]
+    for index, path in enumerate(paths):
+        if any(path == other or path in other.parents or other in path.parents for other in paths[:index]):
+            raise ValueError(f"Duplicate or overlapping cleanup target: {path}")
+    return root, plan["targets"], paths
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--delete", action="store_true", help="delete the listed folders")
+    parser.add_argument("--delete", action="store_true", help="delete only targets from --from-plan")
     parser.add_argument("--days", type=nonnegative_integer, help="minimum age of each target folder's own mtime")
-    parser.add_argument("dir", nargs="?", default=str(Path.home() / "Code"))
+    parser.add_argument("--exclude", action="append", default=[], help="skip a directory (relative to scan root or absolute); repeatable")
+    parser.add_argument("--plan", help="save the preview to a new JSON file")
+    parser.add_argument("--from-plan", help="review or delete an existing plan without rescanning")
+    parser.add_argument("dir", nargs="?", help="scan root (default: ~/Code)")
     args = parser.parse_args()
-    root = validate_root(args.dir)
-    found = scan(root, args.days)
+    if args.delete and not args.from_plan:
+        parser.error("--delete requires --from-plan; first save and review a --plan")
+    if args.from_plan:
+        if args.plan or args.dir or args.days is not None or args.exclude:
+            parser.error("--from-plan cannot be combined with scan options")
+        root, entries, found = read_plan(args.from_plan)
+        show_candidates(found)
+        if not args.delete:
+            print("Dry run of saved plan. No folders deleted.")
+            return
+        for entry in entries:
+            path = check_target(root, entry)
+            shutil.rmtree(path)
+            print(f"Deleted: {json.dumps(str(path))}", flush=True)
+        print(f"Deleted {len(found)} folders.", flush=True)
+        if found:
+            subprocess.run(["pnpm", "store", "prune"], check=True)
+        return
+    root = validate_root(args.dir or Path.home() / "Code")
+    exclusions = []
+    for value in args.exclude:
+        path = (root / Path(value).expanduser()).resolve(strict=True)
+        if root != path and root not in path.parents:
+            parser.error(f"Excluded directory must be within scan root: {path}")
+        if not path.is_dir():
+            parser.error(f"Excluded path must be a directory: {path}")
+        exclusions.append(path)
+    found = [] if root in exclusions else scan(root, args.days, exclusions)
     if not found:
         print(f"Nothing to clean in {root}")
-        return
     show_candidates(found)
-    if not args.delete:
-        print("\nDry run. Re-run with --delete to remove these.")
-        return
-    for path in found:
-        shutil.rmtree(path)
-    print(f"Deleted {len(found)} folders.")
-    subprocess.run(["pnpm", "store", "prune"], check=True)
+    if args.plan:
+        save_plan(args.plan, root, found)
+    else:
+        print("\nDry run. Use --plan FILE to save exact targets for review and deletion.")
 
 
 if __name__ == "__main__":
