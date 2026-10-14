@@ -69,6 +69,9 @@ Re-measure a suspicious folder alone with `du -sh`.
 | Hugging Face (`~/.cache/huggingface`) | `hf cache ls` | Preview `hf cache rm <id> --dry-run`; after approval, `hf cache rm <id> --yes` | Use the exact IDs and cache directory reviewed. Let the CLI manage snapshot/blob references. |
 | Other `~/.cache` | `du -xhd1 ~/.cache` | Delete folders of tools no longer used | Training outputs here are not re-downloadable. |
 | JS folders and package caches | — | See `SKILL.md` | — |
+| mise download cache (`mise cache path`) | `du -sh "$(mise cache path)"` | `mise cache clear` | Separate from `mise prune`, which removes unused runtimes. |
+| uv cache (`uv cache dir`) | `du -sh "$(uv cache dir)"` | `uv cache prune` (unused entries) or `uv cache clean` (everything) | Refills on the next `uv` install or run. |
+| Playwright browsers (`~/Library/Caches/ms-playwright`) | `ls ~/Library/Caches/ms-playwright` | Delete older revisions of the same browser (e.g. `webkit-2227` beside `webkit-2336`) | Upgrades leave old revisions behind. Projects pinned to an old Playwright re-download theirs on `npx playwright install`. |
 | mise runtimes (`~/.local/share/mise`) | `mise ls`, `mise prune --dry-run` | `mise uninstall node@X` | Each Node version holds its own global npm packages. Check `.nvmrc`/`.node-version` pins. |
 | Global npm packages | `du -sh "$(npm root -g)"/* \| sort -rh` | `npm uninstall -g <pkg>` | Duplicates may exist via bun or Homebrew (`which -a`). |
 | Homebrew downloads and orphans (`brew --cache`) | `du -sh "$(brew --cache)"`, `brew cleanup --prune=all -n`, `brew autoremove -n` | `brew cleanup --prune=all`; `brew autoremove` | Plain `brew cleanup` keeps 120 days of downloads. `autoremove` uninstalls dependencies nothing needs; show its list first. |
@@ -108,6 +111,7 @@ Quit the app first. Logins and settings survive.
 | Claude desktop | `~/Library/Application Support/Claude/vm_bundles` (Cowork VM, ~9 GB, re-downloads) | Everything else |
 | Codex | `~/.codex/.tmp` | Sessions and config |
 | Grok CLI | Old binaries in `~/.grok/downloads` | The target of `readlink ~/.grok/bin/grok` |
+| Claude Code CLI | Old versions in `~/.local/share/claude/versions` (~230 MB each) | The target of `readlink ~/.local/bin/claude` |
 
 ## Homebrew taps
 
