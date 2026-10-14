@@ -426,6 +426,15 @@ class InspectionTests(ScriptTests):
         self.assertNotIn(f"{self.home}/Library/Caches\n", subfolders)
         self.assertRegex(result.stdout, r"== Trash\n\s+100K")
 
+    def test_overview_skips_docker_without_a_running_daemon(self):
+        self.overview_stubs()
+        marker = self.base / "docker-called"
+        self.stub("docker", f'touch "{marker}"\nexit 0\n')
+        result = self.overview()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        if not Path("/var/run/docker.sock").is_socket():
+            self.assertFalse(marker.exists())
+
     def test_overview_marks_partial_measurement_as_failure(self):
         self.overview_stubs(du_exit='echo "Permission denied" >&2\nexit 1')
         result = self.overview()

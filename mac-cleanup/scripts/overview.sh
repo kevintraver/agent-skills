@@ -66,7 +66,13 @@ children ~/.cache ~/.local/share
 section "Trash"
 folder ~/.Trash
 
-if docker info >/dev/null 2>&1; then
+# Only ask Docker when a daemon socket exists, so the overview never starts
+# OrbStack or Docker Desktop.
+docker_running() {
+  [[ -S ~/.orbstack/run/docker.sock || -S ~/.docker/run/docker.sock || -S /var/run/docker.sock ]]
+}
+
+if docker_running && docker info >/dev/null 2>&1; then
   section "Docker"
   docker system df || status=1
 fi
