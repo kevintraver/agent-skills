@@ -11,7 +11,7 @@ import unittest
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 
-class CleanNodeTests(unittest.TestCase):
+class ScriptTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="mac-cleanup-test-")
         self.addCleanup(self.temporary.cleanup)
@@ -53,6 +53,8 @@ class CleanNodeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return destination
 
+
+class CleanNodeTests(ScriptTests):
     def test_lists_untracked_targets_without_deleting(self):
         target = self.target()
         result = self.clean(self.root)
@@ -303,6 +305,70 @@ class CleanNodeTests(unittest.TestCase):
         result = self.clean("--delete", "--from-plan", plan)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(marker.exists())
+
+
+class InspectionTests(ScriptTests):
+    def taps(self):
+        return self.command("bash", str(SCRIPTS / "unused-taps.sh"))
+
+    def test_homebrew_inventory_failure_does_not_label_taps_unused(self):
+        self.stub("brew", 'case "$1" in\ninfo) echo "lookup failed" >&2; exit 1 ;;\ntap) echo example/tools ;;\nesac\n')
+        result = self.taps()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("UNUSED", result.stdout)
+
+    def test_empty_or_invalid_homebrew_inventory_aborts(self):
+        for inventory in ("", "not-json", "{}"):
+            with self.subTest(inventory=inventory):
+                self.env["TEST_INVENTORY"] = inventory
+                self.stub("brew", 'case "$1" in\ninfo) printf "%s" "$TEST_INVENTORY" ;;\ntap) echo example/tools ;;\nesac\n')
+                result = self.taps()
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("UNUSED", result.stdout)
+
+    def test_homebrew_inventory_distinguishes_formulae_casks_and_unused(self):
+        self.env["TEST_INVENTORY"] = json.dumps({
+            "formulae": [{"tap": "example/formulae", "name": "tool"}],
+            "casks": [{"tap": "example/casks", "token": "app"}],
+        })
+        self.stub("brew", 'case "$1" in\ninfo) printf "%s" "$TEST_INVENTORY" ;;\ntap) printf "%s\\n" homebrew/core example/formulae example/casks example/empty ;;\nesac\n')
+        result = self.taps()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("homebrew/core", result.stdout)
+        self.assertRegex(result.stdout, r"example/formulae\s+tool")
+        self.assertRegex(result.stdout, r"example/casks\s+app")
+        self.assertRegex(result.stdout, r"example/empty\s+UNUSED")
+
+    def test_homebrew_tap_listing_failure_aborts(self):
+        self.stub("brew", 'case "$1" in\ninfo) echo \'{"formulae":[],"casks":[]}\' ;;\ntap) exit 1 ;;\nesac\n')
+        self.assertNotEqual(self.taps().returncode, 0)
+
+    def overview(self, *args):
+        return self.command("bash", str(SCRIPTS / "overview.sh"), *args)
+
+    def overview_stubs(self):
+        self.stub("df", 'echo "filesystem blocks used available capacity mounted"\necho "disk 1000 100 900 10% /System/Volumes/Data"\n')
+        self.stub("du", 'printf "2G\\tfixture\\n1G\\tsmaller\\n"\n')
+        self.stub("docker", "exit 1\n")
+
+    def test_overview_marks_partial_measurement_as_failure(self):
+        self.overview_stubs()
+        self.stub("du", 'printf "2G\\tpartial-result\\n"\necho "Permission denied" >&2\nexit 1\n')
+        result = self.overview()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("partial-result", result.stdout)
+        self.assertIn("Incomplete measurement", result.stderr)
+        self.assertIn("Permission denied", result.stderr)
+
+    def test_overview_accepts_limited_output_without_pipeline_failure(self):
+        self.overview_stubs()
+        result = self.overview("1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_overview_rejects_invalid_rows(self):
+        for args in (("0",), ("-1",), ("oops",), ("1", "2")):
+            with self.subTest(args=args):
+                self.assertNotEqual(self.overview(*args).returncode, 0)
 
 
 if __name__ == "__main__":
