@@ -21,17 +21,21 @@ approves, and report freed space from `df`, not from summed `du` totals.
 `.nuxt`, `.svelte-kit`, and `.parcel-cache`. It is normally on PATH as
 `clean-node`; if `command -v clean-node` finds nothing, run the bundled path or
 link it: `ln -s <skill-directory>/scripts/clean-node ~/.local/bin/clean-node`.
+Requires Python 3.9+, Git, and `du`; invoke it directly, not with `bash`.
 
 ```bash
 clean-node [--delete] [--days N] [dir]    # dir defaults to ~/Code
 ```
 
 - Dry run unless `--delete`: lists matches largest first, with a total.
-- `--days N` only matches folders whose own mtime is older than N days. That
-  mtime changes on install or build, so active projects are skipped.
-- Never descends into `node_modules` or `.git`; skips folders containing
-  git-tracked files; runs `pnpm store prune` after deleting.
-- Scans ~15 GB of projects in under 10 seconds.
+- `--days N` only matches folders whose own mtime is older than N days.
+  It does not establish project inactivity: source edits and nested file edits
+  can leave that timestamp unchanged.
+- Rejects home, ancestors of home, and known tool-installation roots, including
+  symlink aliases. Does not follow symlinks while scanning.
+- Skips folders containing Git repositories or git-tracked files. Inspection
+  and measurement errors abort the command; they never mean "nothing to clean".
+- Runs `pnpm store prune` after deleting.
 
 Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
 
