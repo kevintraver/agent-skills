@@ -77,6 +77,7 @@ Re-measure a suspicious folder alone with `du -sh`.
 | Homebrew downloads and orphans (`brew --cache`) | `du -sh "$(brew --cache)"`, `brew cleanup --prune=all -n`, `brew autoremove -n` | `brew cleanup --prune=all`; `brew autoremove` | Plain `brew cleanup` keeps 120 days of downloads. `autoremove` uninstalls dependencies nothing needs; show its list first. |
 | Duplicate Rust | `which cargo`, `rustup toolchain list` | `rustup toolchain uninstall stable` | Never `rustup self uninstall`: it deletes `~/.cargo` and its `cargo install` tools. |
 | Xcode (`~/Library/Developer/Xcode`) | `du -xhd1` | Delete old `iOS DeviceSupport/<version>` | Counts as Developer. Rebuilt when a device connects. |
+| Xcode simulators (`~/Library/Developer/CoreSimulator`) | `xcrun simctl list devices unavailable` | `xcrun simctl delete unavailable` | Only removes simulators whose runtime is gone (left from older Xcode versions). Counts as Developer. |
 
 Hugging Face cache locations can be overridden by `HF_HOME` or `HF_HUB_CACHE`.
 For a custom location, use the same `--cache-dir PATH` for listing, preview,
