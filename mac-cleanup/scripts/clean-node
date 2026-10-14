@@ -1,0 +1,62 @@
+#!/bin/bash
+# clean-node - Delete regenerable JS dependency and build folders
+#
+# Usage: clean-node [--delete] [--days N] [dir]
+#   dir         where to search (default: ~/Code)
+#   --days N    only folders untouched for more than N days (skips active projects)
+#   --delete    actually delete; without it, only lists what would be deleted
+#
+# Folders containing git-tracked files are always left alone.
+
+TARGETS=(node_modules .next .turbo .nuxt .svelte-kit .parcel-cache)
+
+root="$HOME/Code"
+days=
+delete=false
+
+while (($#)); do
+  case $1 in
+    --delete) delete=true ;;
+    --days) days=${2:?--days needs a number} && shift ;;
+    -*) echo "unknown option: $1" >&2 && exit 1 ;;
+    *) root=$1 ;;
+  esac
+  shift
+done
+
+cd "$root" || exit 1
+
+names=()
+for target in "${TARGETS[@]}"; do names+=(-o -name "$target"); done
+
+# Matches are pruned, so nothing inside node_modules (or .git) is ever touched.
+# Folders with git-tracked files (e.g. test fixtures) are skipped.
+found=()
+while IFS= read -r -d '' dir; do
+  [[ -n $(git -C "${dir%/*}" ls-files -- "${dir##*/}" 2>/dev/null | head -1) ]] && continue
+  found+=("$dir")
+done < <(find . -name .git -prune -o \( "${names[@]:1}" \) -type d -prune ${days:+-mtime "+$days"} -print0)
+
+if ((${#found[@]} == 0)); then
+  echo "Nothing to clean in $root"
+  exit 0
+fi
+
+du -sk "${found[@]}" | sort -rn | awk -F'\t' '
+  function human(kb) {
+    return kb >= 1048576 ? sprintf("%.1fG", kb / 1048576) : kb >= 1024 ? sprintf("%.0fM", kb / 1024) : kb "K"
+  }
+  { total += $1; sub(/^\.\//, "", $2); printf "%7s  %s\n", human($1), $2 }
+  END { printf "%7s  total (%d folders)\n", human(total), NR }'
+
+if ! $delete; then
+  echo
+  echo "Dry run. Re-run with --delete to remove these."
+  exit 0
+fi
+
+rm -rf "${found[@]}" || exit 1
+echo "Deleted ${#found[@]} folders."
+
+# pnpm node_modules are hard links into its store; prune frees the space
+pnpm store prune
