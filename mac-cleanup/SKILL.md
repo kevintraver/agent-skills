@@ -68,7 +68,9 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
    ```bash
    for d in ~/*/; do
      [[ $d == "$HOME/Library/" ]] && continue
-     find "$d" -maxdepth 3 -name package.json -not -path '*/node_modules/*' -print -quit 2>/dev/null | grep -q . && echo "$d"
+     if [[ -n $(find "$d" -maxdepth 3 \( -name node_modules -o -name .git \) -prune -o -name package.json -print -quit 2>/dev/null) ]]; then
+       echo "${d%/}"
+     fi
    done
    ```
 
