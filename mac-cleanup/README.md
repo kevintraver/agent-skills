@@ -16,13 +16,18 @@ Ask your agent something like "clean up my node_modules". It will:
 Or run the script yourself:
 
 ```bash
-clean-node --days 30            # show what would go (deletes nothing)
-clean-node --days 30 --delete   # delete it
-clean-node ~/CraftedLabs        # look somewhere other than ~/Code
+clean-node --days 30 --plan plan.json     # save a list of what would go (deletes nothing)
+clean-node --from-plan plan.json          # look at that list again
+clean-node --delete --from-plan plan.json # delete exactly what's on the list
+clean-node ~/Projects                     # look somewhere other than ~/Code
 ```
+
+It only deletes what's on a list you've already seen. If anything on the list
+changed since, it stops.
 
 `--days 30` skips folders that changed in the last 30 days, so projects you're
 working on keep their dependencies. It's a rough guide, not a guarantee.
+`--exclude <folder>` leaves a project out.
 
 ## What it won't touch
 
