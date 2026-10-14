@@ -406,17 +406,31 @@ class InspectionTests(ScriptTests):
     def overview(self, *args):
         return self.command("bash", str(SCRIPTS / "overview.sh"), *args)
 
-    def overview_stubs(self):
+    def overview_stubs(self, du_exit="exit 0"):
         self.stub("df", '[ "$1" = "-k" ] || exit 2\necho "filesystem blocks used available capacity mounted"\necho "disk 1000 100 900 10% /System/Volumes/Data"\n')
-        self.stub("du", 'printf "2G\\tfixture\\n1G\\tsmaller\\n"\n')
+        # du -k output (KiB<TAB>path) for a small home folder; logs each call.
+        self.du_log = self.base / "du.log"
+        self.stub("du", f'echo "$@" >> "{self.du_log}"\n'
+                  'printf "%s\\t%s\\n" 4096 "$HOME" 3072 "$HOME/Library" 2048 "$HOME/Library/Caches" \\\n'
+                  '  1536 "$HOME/Library/Caches/big-cache" 512 "$HOME/Code" 100 "$HOME/.Trash"\n'
+                  f"{du_exit}\n")
         self.stub("docker", "exit 1\n")
 
-    def test_overview_marks_partial_measurement_as_failure(self):
+    def test_overview_measures_home_once_and_lists_children(self):
         self.overview_stubs()
-        self.stub("du", 'printf "2G\\tpartial-result\\n"\necho "Permission denied" >&2\nexit 1\n')
+        result = self.overview()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(self.du_log.read_text().splitlines()), 1)
+        subfolders = result.stdout.split("== ~/Library subfolders")[1].split("==")[0]
+        self.assertIn("big-cache", subfolders)
+        self.assertNotIn(f"{self.home}/Library/Caches\n", subfolders)
+        self.assertRegex(result.stdout, r"== Trash\n\s+100K")
+
+    def test_overview_marks_partial_measurement_as_failure(self):
+        self.overview_stubs(du_exit='echo "Permission denied" >&2\nexit 1')
         result = self.overview()
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("partial-result", result.stdout)
+        self.assertIn("big-cache", result.stdout)
         self.assertIn("Incomplete measurement", result.stderr)
         self.assertIn("Permission denied", result.stderr)
 
