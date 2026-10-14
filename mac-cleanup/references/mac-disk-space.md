@@ -71,6 +71,7 @@ Re-measure a suspicious folder alone with `du -sh`.
 | JS folders and package caches | — | See `SKILL.md` | — |
 | mise runtimes (`~/.local/share/mise`) | `mise ls`, `mise prune --dry-run` | `mise uninstall node@X` | Each Node version holds its own global npm packages. Check `.nvmrc`/`.node-version` pins. |
 | Global npm packages | `du -sh "$(npm root -g)"/* \| sort -rh` | `npm uninstall -g <pkg>` | Duplicates may exist via bun or Homebrew (`which -a`). |
+| Homebrew downloads and orphans (`brew --cache`) | `du -sh "$(brew --cache)"`, `brew cleanup --prune=all -n`, `brew autoremove -n` | `brew cleanup --prune=all`; `brew autoremove` | Plain `brew cleanup` keeps 120 days of downloads. `autoremove` uninstalls dependencies nothing needs; show its list first. |
 | Duplicate Rust | `which cargo`, `rustup toolchain list` | `rustup toolchain uninstall stable` | Never `rustup self uninstall`: it deletes `~/.cargo` and its `cargo install` tools. |
 | Xcode (`~/Library/Developer/Xcode`) | `du -xhd1` | Delete old `iOS DeviceSupport/<version>` | Counts as Developer. Rebuilt when a device connects. |
 
