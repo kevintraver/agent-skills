@@ -90,7 +90,9 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
    different cwd can still use these files. Exclude known active projects and
    recheck activity immediately before applying a plan.
 4. Preview each root with `--days 30 --plan /tmp/cleanup-<unique-name>.json`
-   and `--exclude` for each active or unwanted project. Omit `--days` only if
+   and `--exclude` for each active or unwanted project under that root. Pass
+   only exclusions inside the root being scanned (`clean-node` rejects others),
+   and skip `/` and non-project folders from the `lsof` output. Omit `--days` only if
    the user wants everything. Show the output; on "Nothing to clean", offer
    a run without `--days`. Plans must be new files outside deletion targets.
 5. Get approval for the exact paths and any optional shared-store pruning. If
