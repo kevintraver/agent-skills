@@ -233,9 +233,12 @@ def main():
             parser.error(f"Excluded path must be a directory: {path}")
         exclusions.append(path)
     found = [] if root in exclusions else scan(root, args.days, exclusions)
-    if not found:
+    if found:
+        show_candidates(found)
+    else:
         print(f"Nothing to clean in {root}")
-    show_candidates(found)
+        if not args.prune_store:
+            return
     store = current_store(root) if args.prune_store else None
     show_store(store)
     if args.plan:

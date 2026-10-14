@@ -89,6 +89,14 @@ class CleanNodeTests(ScriptTests):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("Nothing to clean", result.stdout)
 
+    def test_empty_scan_saves_no_plan(self):
+        destination = self.base / "plan.json"
+        result = self.clean("--plan", destination, self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Nothing to clean", result.stdout)
+        self.assertNotIn("total", result.stdout)
+        self.assertFalse(destination.exists())
+
     def test_rejects_home_ancestors_and_tool_roots_including_aliases(self):
         global_root = self.home / ".bun/install/global"
         global_root.mkdir(parents=True)
