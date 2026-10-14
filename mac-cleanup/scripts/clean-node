@@ -98,11 +98,13 @@ def scan(root, days, exclusions):
     return found
 
 
+def disk_usage_kib(path):
+    output = subprocess.check_output(["du", "-sk", str(path)])
+    return int(output.split(b"\t", 1)[0])
+
+
 def show_candidates(paths):
-    sizes = []
-    for path in paths:
-        output = subprocess.check_output(["du", "-sk", str(path)])
-        sizes.append((int(output.split(b"\t", 1)[0]), path))
+    sizes = [(disk_usage_kib(path), path) for path in paths]
     for size, path in sorted(sizes, reverse=True):
         print(f"{size:>10,} KiB  {json.dumps(str(path), ensure_ascii=False)}")
     print(f"{sum(size for size, _ in sizes):>10,} KiB  total ({len(paths)} folders; not predicted freed space)")
@@ -113,7 +115,26 @@ def fingerprint(path):
     return [metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns]
 
 
-def save_plan(destination, root, paths):
+def current_store(root):
+    output = subprocess.check_output(["pnpm", "store", "path"], cwd=root, text=True).rstrip("\r\n")
+    path = Path(output)
+    if not path.is_absolute() or not path.is_dir():
+        raise ValueError(f"pnpm did not return an existing absolute store directory: {output!r}")
+    return str(path.resolve(strict=True))
+
+
+def show_store(store):
+    if store is not None:
+        print(f"Additional action: pnpm store prune\nStore: {json.dumps(store)} ({disk_usage_kib(store):,} KiB)")
+        print("Pruning affects the shared store, beyond the listed project folders; size is not predicted freed space.")
+
+
+def check_store(root, store):
+    if store is not None and (not isinstance(store, str) or current_store(root) != store):
+        raise ValueError("pnpm store changed since preview; create and review a new plan")
+
+
+def save_plan(destination, root, paths, store):
     destination = Path(destination).expanduser().resolve()
     if any(path == destination or path in destination.parents for path in paths):
         raise ValueError("Save the plan outside the folders being deleted")
@@ -121,6 +142,7 @@ def save_plan(destination, root, paths):
         "version": 1,
         "root": str(root),
         "targets": [{"path": str(path), "fingerprint": fingerprint(path)} for path in paths],
+        "prune_store": store,
     }
     with destination.open("x") as output:
         json.dump(plan, output, indent=2)
@@ -158,7 +180,9 @@ def read_plan(source):
     for index, path in enumerate(paths):
         if any(path == other or path in other.parents or other in path.parents for other in paths[:index]):
             raise ValueError(f"Duplicate or overlapping cleanup target: {path}")
-    return root, plan["targets"], paths
+    store = plan.get("prune_store")
+    check_store(root, store)
+    return root, plan["targets"], paths, store
 
 
 def main():
@@ -168,15 +192,17 @@ def main():
     parser.add_argument("--exclude", action="append", default=[], help="skip a directory (relative to scan root or absolute); repeatable")
     parser.add_argument("--plan", help="save the preview to a new JSON file")
     parser.add_argument("--from-plan", help="review or delete an existing plan without rescanning")
+    parser.add_argument("--prune-store", action="store_true", help="include shared pnpm store pruning in the preview and plan")
     parser.add_argument("dir", nargs="?", help="scan root (default: ~/Code)")
     args = parser.parse_args()
     if args.delete and not args.from_plan:
         parser.error("--delete requires --from-plan; first save and review a --plan")
     if args.from_plan:
-        if args.plan or args.dir or args.days is not None or args.exclude:
+        if args.plan or args.dir or args.days is not None or args.exclude or args.prune_store:
             parser.error("--from-plan cannot be combined with scan options")
-        root, entries, found = read_plan(args.from_plan)
+        root, entries, found, store = read_plan(args.from_plan)
         show_candidates(found)
+        show_store(store)
         if not args.delete:
             print("Dry run of saved plan. No folders deleted.")
             return
@@ -185,8 +211,14 @@ def main():
             shutil.rmtree(path)
             print(f"Deleted: {json.dumps(str(path))}", flush=True)
         print(f"Deleted {len(found)} folders.", flush=True)
-        if found:
-            subprocess.run(["pnpm", "store", "prune"], check=True)
+        if store is not None:
+            check_store(root, store)
+            print(f"Folder deletion completed. Pruning approved pnpm store: {store}", flush=True)
+            result = subprocess.run(["pnpm", "store", "prune"], cwd=root)
+            if result.returncode:
+                print("Folder deletion completed, but pnpm store pruning failed.", file=sys.stderr)
+                return result.returncode
+            print("pnpm store pruning completed.")
         return
     root = validate_root(args.dir or Path.home() / "Code")
     exclusions = []
@@ -201,15 +233,17 @@ def main():
     if not found:
         print(f"Nothing to clean in {root}")
     show_candidates(found)
+    store = current_store(root) if args.prune_store else None
+    show_store(store)
     if args.plan:
-        save_plan(args.plan, root, found)
+        save_plan(args.plan, root, found, store)
     else:
         print("\nDry run. Use --plan FILE to save exact targets for review and deletion.")
 
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main())
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"clean-node: {error}", file=sys.stderr)
         sys.exit(1)

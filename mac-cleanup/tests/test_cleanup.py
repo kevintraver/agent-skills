@@ -231,11 +231,78 @@ class CleanNodeTests(unittest.TestCase):
     def test_plan_cannot_be_combined_with_scan_options(self):
         target = self.target()
         plan = self.plan()
-        for args in (("--days", "0"), (self.root,), ("--exclude", "project"), ("--plan", "other.json")):
+        for args in (("--days", "0"), (self.root,), ("--exclude", "project"), ("--plan", "other.json"), ("--prune-store",)):
             with self.subTest(args=args):
                 result = self.clean("--delete", "--from-plan", plan, *args)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertTrue(target.exists())
+
+    def pnpm_store(self, prune_status=0):
+        store = self.home / "store"
+        store.mkdir()
+        marker = self.base / "pnpm-pruned"
+        self.env["TEST_STORE"] = str(store)
+        self.env["TEST_PRUNE_MARKER"] = str(marker)
+        self.stub("pnpm", 'case "$*" in\n'
+                  '"store path") printf "%s\\n" "$TEST_STORE" ;;\n'
+                  f'"store prune") touch "$TEST_PRUNE_MARKER"; exit {prune_status} ;;\n'
+                  '*) exit 2 ;;\nesac\n')
+        return store, marker
+
+    def test_ordinary_cleanup_does_not_invoke_pnpm(self):
+        target = self.target()
+        marker = self.base / "unexpected-pnpm-call"
+        self.env["TEST_PRUNE_MARKER"] = str(marker)
+        self.stub("pnpm", 'touch "$TEST_PRUNE_MARKER"\nexit 127\n')
+        plan = self.plan()
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(target.exists())
+        self.assertFalse(marker.exists())
+
+    def test_pruning_requires_previewed_store_and_is_separate(self):
+        self.target()
+        store, marker = self.pnpm_store()
+        plan = self.plan("--prune-store")
+        preview = self.clean("--from-plan", plan)
+        self.assertEqual(preview.returncode, 0, preview.stderr)
+        self.assertIn(str(store), preview.stdout)
+        self.assertIn("shared store", preview.stdout)
+        self.assertFalse(marker.exists())
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.exists())
+        self.assertIn("Deleted 1 folders.", result.stdout)
+        self.assertIn("pnpm store pruning completed.", result.stdout)
+
+    def test_changed_store_aborts_before_deletion(self):
+        target = self.target()
+        store, marker = self.pnpm_store()
+        plan = self.plan("--prune-store")
+        other = store.with_name("other-store")
+        other.mkdir()
+        self.env["TEST_STORE"] = str(other)
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(target.exists())
+        self.assertFalse(marker.exists())
+
+    def test_prune_failure_reports_completed_folder_deletion(self):
+        target = self.target()
+        self.pnpm_store(prune_status=7)
+        plan = self.plan("--prune-store")
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 7)
+        self.assertFalse(target.exists())
+        self.assertIn("Deleted 1 folders.", result.stdout)
+        self.assertIn("pruning failed", result.stderr)
+
+    def test_opt_in_prune_works_with_no_project_targets(self):
+        _, marker = self.pnpm_store()
+        plan = self.plan("--prune-store")
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.exists())
 
 
 if __name__ == "__main__":

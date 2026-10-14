@@ -24,7 +24,7 @@ link it: `ln -s <skill-directory>/scripts/clean-node ~/.local/bin/clean-node`.
 Requires Python 3.9+, Git, and `du`; invoke it directly, not with `bash`.
 
 ```bash
-clean-node [--days N] [--exclude PATH ...] [--plan FILE] [dir]  # default: ~/Code
+clean-node [--days N] [--exclude PATH ...] [--prune-store] [--plan FILE] [dir]
 clean-node --from-plan FILE             # review saved targets
 clean-node --delete --from-plan FILE    # apply only after approval
 ```
@@ -43,7 +43,10 @@ clean-node --delete --from-plan FILE    # apply only after approval
   symlink aliases. Does not follow symlinks while scanning.
 - Skips folders containing Git repositories or git-tracked files. Inspection
   and measurement errors abort the command; they never mean "nothing to clean".
-- Runs `pnpm store prune` after deleting.
+- Store pruning is opt-in: add `--prune-store` when creating a plan. The preview
+  shows the shared store path, size, and broader scope. Deletion checks that
+  pnpm still selects the approved store, then reports pruning separately.
+  Ordinary project cleanup does not invoke or require pnpm.
 
 Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
 
@@ -74,7 +77,7 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
    and `--exclude` for each active or unwanted project. Omit `--days` only if
    the user wants everything. Show the output; on "Nothing to clean", offer
    a run without `--days`. Plans must be new files outside deletion targets.
-5. Get approval for the exact paths. If the selection changes, create and
+5. Get approval for the exact paths and any optional shared-store pruning. If the selection changes, create and
    review a new plan with exclusions; don't hand-edit plans or use manual
    `rm -rf`. `clean-node --from-plan FILE` rechecks and displays a saved plan.
 6. Run `clean-node --delete --from-plan FILE`, re-run `df`, and report the space
@@ -83,9 +86,10 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
 
 ## Freed space is less than the listed total
 
-pnpm `node_modules` are hard links into the store (`pnpm store path`). Deleting
-them only removes links; `pnpm store prune` (run by `clean-node --delete`) frees
-packages no other registered project uses. Shared dependencies free nothing.
+pnpm can share dependency data with its store (`pnpm store path`). Removing
+project folders may free less than their measured sizes. Store pruning is a
+separate action: include `--prune-store` in the reviewed plan, or review and run
+`pnpm store prune` separately. Pruning can require downloads on a later install.
 
 ## Package-manager caches
 
