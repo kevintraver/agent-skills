@@ -154,6 +154,46 @@ class CleanNodeTests(ScriptTests):
         for kept in (excluded, also_excluded, new):
             self.assertTrue(kept.exists())
 
+    def test_excluding_nested_content_preserves_its_cleanup_parent(self):
+        target = self.target()
+        nested = target / "local-package"
+        nested.mkdir()
+        approved = self.target("other/.next")
+        plan = self.plan("--exclude", nested)
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(nested.exists())
+        self.assertFalse(approved.exists())
+
+    def test_protected_tool_alias_preserves_its_cleanup_parent(self):
+        target = self.target()
+        tool = target / "installed-tool"
+        tool.mkdir()
+        (self.home / ".bun").symlink_to(tool, target_is_directory=True)
+        result = self.clean(self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(str(target), result.stdout)
+
+    def test_new_tool_alias_aborts_saved_deletion(self):
+        target = self.target()
+        tool = target / "installed-tool"
+        tool.mkdir()
+        plan = self.plan()
+        (self.home / ".bun").symlink_to(tool, target_is_directory=True)
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(tool.exists())
+
+    def test_unreadable_nested_content_aborts_scan(self):
+        target = self.target()
+        unreadable = target / "unreadable"
+        unreadable.mkdir()
+        unreadable.chmod(0)
+        self.addCleanup(unreadable.chmod, 0o755)
+        result = self.clean(self.root)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("Nothing to clean", result.stdout)
+
     def test_plan_round_trips_unusual_filenames(self):
         target = self.target('spaces "quotes"\ttab\nnewline/node_modules')
         plan = self.plan()

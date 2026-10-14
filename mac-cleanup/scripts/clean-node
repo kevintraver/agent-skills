@@ -91,6 +91,8 @@ def scan(root, days, exclusions):
                 directories.remove(name)
             elif name in TARGETS:
                 directories.remove(name)
+                if any(path in kept.parents for kept in exclusions + protected_roots()):
+                    continue
                 if cutoff is not None and path.stat().st_mtime >= cutoff:
                     continue
                 if eligible(path):
@@ -156,7 +158,8 @@ def check_target(root, entry):
         raise ValueError("Invalid target in cleanup plan")
     path = Path(entry["path"])
     if (not path.is_absolute() or root not in path.parents or path.name not in TARGETS
-            or ".git" in path.relative_to(root).parts or is_protected(path)):
+            or ".git" in path.relative_to(root).parts or is_protected(path)
+            or any(path in protected.parents for protected in protected_roots())):
         raise ValueError(f"Invalid cleanup target: {path}")
     if path.resolve(strict=True) != path or not path.is_dir():
         raise ValueError(f"Target is no longer a regular directory at the approved path: {path}")
