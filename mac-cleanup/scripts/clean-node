@@ -80,7 +80,8 @@ def has_tracked_files(path):
 
 
 def eligible(path):
-    if contains_repository(path) or has_tracked_files(path):
+    # The Git index check is cheap; walking the whole folder is not.
+    if has_tracked_files(path) or contains_repository(path):
         print(f"Skipped Git content: {json.dumps(str(path))}", file=sys.stderr)
         return False
     return True
