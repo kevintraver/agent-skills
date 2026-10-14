@@ -40,10 +40,16 @@ def is_protected(path):
     return any(path == parent or parent in path.parents for parent in protected_roots())
 
 
+def in_hidden_home_folder(path, home):
+    # Tools install themselves under ~/.local, ~/.config, ~/.agents, and
+    # similar folders, where node_modules is the program itself.
+    return home in path.parents and path.relative_to(home).parts[0].startswith(".")
+
+
 def validate_root(value):
     root = Path(value).expanduser().resolve(strict=True)
     home = Path.home().resolve()
-    if root == home or root in home.parents or is_protected(root):
+    if root == home or root in home.parents or is_protected(root) or in_hidden_home_folder(root, home):
         raise ValueError(f"Refusing protected scan root: {root}")
     if not root.is_dir():
         raise ValueError(f"Not a directory: {root}")

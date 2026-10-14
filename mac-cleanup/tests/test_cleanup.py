@@ -108,6 +108,18 @@ class CleanNodeTests(ScriptTests):
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("protected scan root", result.stderr)
 
+    def test_rejects_hidden_home_folders_and_their_aliases(self):
+        installed = self.home / ".local/share/opencode/bin/node_modules"
+        installed.mkdir(parents=True)
+        alias = self.root / "tools"
+        alias.symlink_to(installed.parent, target_is_directory=True)
+        for root in (self.home / ".local", self.home / ".local/share", installed.parent, alias):
+            with self.subTest(root=root):
+                result = self.clean(root)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("protected scan root", result.stderr)
+                self.assertTrue(installed.exists())
+
     def test_does_not_follow_symlinks(self):
         outside = self.base / "outside/node_modules"
         outside.mkdir(parents=True)
