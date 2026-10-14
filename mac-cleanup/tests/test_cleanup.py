@@ -407,7 +407,7 @@ class InspectionTests(ScriptTests):
         return self.command("bash", str(SCRIPTS / "overview.sh"), *args)
 
     def overview_stubs(self):
-        self.stub("df", 'echo "filesystem blocks used available capacity mounted"\necho "disk 1000 100 900 10% /System/Volumes/Data"\n')
+        self.stub("df", '[ "$1" = "-k" ] || exit 2\necho "filesystem blocks used available capacity mounted"\necho "disk 1000 100 900 10% /System/Volumes/Data"\n')
         self.stub("du", 'printf "2G\\tfixture\\n1G\\tsmaller\\n"\n')
         self.stub("docker", "exit 1\n")
 

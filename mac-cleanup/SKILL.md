@@ -13,7 +13,8 @@ Pick the path:
   Start with `bash <skill-directory>/scripts/overview.sh` for a breakdown.
 
 Either way: show sizes and exact paths first, delete only what the user
-approves, and report freed space from `df`, not from summed `du` totals.
+approves, and report the observed free-space change from `df -k`, not from
+summed `du` totals.
 
 ## clean-node
 
@@ -22,6 +23,7 @@ approves, and report freed space from `df`, not from summed `du` totals.
 `clean-node`; if `command -v clean-node` finds nothing, run the bundled path or
 link it: `ln -s <skill-directory>/scripts/clean-node ~/.local/bin/clean-node`.
 Requires Python 3.9+, Git, and `du`; invoke it directly, not with `bash`.
+The scan root defaults to `~/Code`.
 
 ```bash
 clean-node [--days N] [--exclude PATH ...] [--prune-store] [--plan FILE] [dir]
@@ -31,9 +33,10 @@ clean-node --delete --from-plan FILE    # apply only after approval
 
 - Dry run unless `--delete`: lists matches largest first, with a total.
 - Deletion requires a saved plan: it never rescans for additional targets.
-  Plans record absolute paths and directory identities/mtimes. Changed, missing,
-  redirected, or newly Git-protected targets abort deletion. Keep projects idle
-  during cleanup; this is not a lock against concurrent installs or builds.
+  Plans record absolute paths and directory identities/mtimes. Changed identities
+  or top-level mtimes, missing paths, symlinks, or newly Git-protected targets
+  abort deletion. Keep projects idle during cleanup; this is not a lock against
+  concurrent installs or builds.
 - `--exclude PATH` skips a project or target directory. Relative paths are
   relative to the scan root; repeat the option for multiple exclusions.
 - `--days N` only matches folders whose own mtime is older than N days.
@@ -52,7 +55,13 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
 
 ## Workflow
 
-1. Record free space: `df -h /System/Volumes/Data | tail -1`.
+1. Record available space in KiB, retaining the number for the final comparison:
+
+   ```bash
+   cleanup_before_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 {print $4}')
+   ```
+
+   Stop if measurement fails; don't use an empty or missing value as zero.
 2. Find the roots. Projects live in `~/Code` and in client folders directly
    under `~`:
 
@@ -67,21 +76,38 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
    `node_modules` are the program (Neovim Mason, `~/.bun/install/global`, mise's
    global npm packages, editor extensions) and break them.
 3. Leave out projects with a running dev server, whose `node_modules`/`.next`
-   are in use:
+   are in use. For projects managed by `d3k`, inspect the existing session,
+   including `d3k errors --context`. Do not start a dev server for cleanup.
+   This process-cwd check provides additional clues:
 
    ```bash
    lsof -a -d cwd -c node -c bun -Fn 2>/dev/null | sed -n 's/^n//p' | sort -u
    ```
 
+   Empty output does not prove inactivity: other runtimes and processes with a
+   different cwd can still use these files. Exclude known active projects and
+   recheck activity immediately before applying a plan.
 4. Preview each root with `--days 30 --plan /tmp/cleanup-<unique-name>.json`
    and `--exclude` for each active or unwanted project. Omit `--days` only if
    the user wants everything. Show the output; on "Nothing to clean", offer
    a run without `--days`. Plans must be new files outside deletion targets.
-5. Get approval for the exact paths and any optional shared-store pruning. If the selection changes, create and
-   review a new plan with exclusions; don't hand-edit plans or use manual
-   `rm -rf`. `clean-node --from-plan FILE` rechecks and displays a saved plan.
-6. Run `clean-node --delete --from-plan FILE`, re-run `df`, and report the space
-   freed. Mention that `pnpm install` (or npm/bun) restores a project and
+5. Get approval for the exact paths and any optional shared-store pruning. If
+   the selection changes, create and review a new plan with exclusions; don't
+   hand-edit plans or use manual `rm -rf`. `clean-node --from-plan FILE`
+   rechecks and displays a saved plan.
+6. Run `clean-node --delete --from-plan FILE`, then measure again:
+
+   ```bash
+   cleanup_after_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 {print $4}')
+   awk -v before="$cleanup_before_kib" -v after="$cleanup_after_kib" \
+     'BEGIN {printf "Observed free-space change: %+.2f GiB (%+.0f KiB)\n", (after-before)/1048576, after-before}'
+   ```
+
+   Use this calculation only when both measurements succeeded. Report the
+   before/after values, observed change, and completed folder deletions and
+   pruning separately. Background writes and filesystem accounting can affect
+   the change; don't infer exact reclaimed bytes from `du` or rounded `df -h`.
+   Mention that `pnpm install` (or npm/bun) restores dependencies and
    `next dev`/`next build` recreates `.next`.
 
 ## Freed space is less than the listed total
@@ -110,3 +136,15 @@ Offer these when the user wants more space. Each refills on demand.
 - `dist`: sometimes committed (GitHub Actions, published packages).
 - `.vercel` (project link) and `.expo` (dev-client settings).
 - Anything `git ls-files <path>` reports as tracked.
+
+## Script verification
+
+After changing the scripts, run:
+
+```bash
+python3 -B -m unittest discover -s <skill-directory>/tests -v
+bash -n <skill-directory>/scripts/overview.sh <skill-directory>/scripts/unused-taps.sh
+```
+
+Tests use temporary directories and stub package-manager actions; they require
+Git, `du`, and `jq`.

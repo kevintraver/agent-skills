@@ -40,12 +40,19 @@ bash <skill-directory>/scripts/overview.sh [rows]
 Prints free space and the largest folders in `~`, `~/Library` and its main
 subfolders, `~/.cache`, `~/.local/share`, the Trash, and `docker system df`.
 Allow a couple of minutes. Drill down with `du -xhd1 <dir> | sort -rh | head`.
+The overview returns nonzero and marks incomplete measurements when paths
+cannot be read. Don't present partial results as complete totals.
 
-**Documents figure.** System Settings counts nearly everything in `~` as
-Documents unless another category claims it. Estimate: home total −
-`~/Pictures/Photos Library.photoslibrary` (Photos) − `~/Library/Developer`
-(Developer) − `~/Library/Messages` and `~/Library/Containers/com.apple.MobileSMS`
-(Messages). The Trash counts until emptied. Settings takes minutes to update.
+**Free-space change.** Record the Available column of
+`df -k /System/Volumes/Data` before and after cleanup. Subtract those KiB values
+before converting to GiB; `df -h` is too rounded for a reliable difference.
+Report an observed change, since other disk activity and filesystem accounting
+can affect it. See the [main workflow](../SKILL.md#workflow) for commands.
+
+**Documents figure.** Use measured folder sizes to find cleanup candidates.
+Don't infer an exact System Settings Documents total by subtracting a few
+folders from home usage. Report the measured paths separately from any category
+figure observed in Settings.
 
 **`du` and hard links.** `du` counts a hard-linked file once per invocation, so
 pnpm projects measure differently depending on what else is in the same call.
@@ -59,13 +66,20 @@ Re-measure a suspicious folder alone with `du -sh`.
 | OrbStack/Docker (`~/Library/Group Containers/*.dev.orbstack`) | `docker system df`, `docker ps -a` | `docker image prune -a`; add `system prune -a --volumes` only if volumes are disposable | Volumes hold data (dev databases). Don't stop OrbStack mid-prune. OrbStack returns freed space to macOS. |
 | Ollama (`~/.ollama/models`) | `ollama list` | `ollama rm <model>` | Keep `~/.ollama` config and keys. |
 | App-bundled AI models | `du` on `~/Library/Application Support/*` | Remove unused model files | [Find the active model](#find-the-active-model-before-deleting-others) first. |
-| Hugging Face (`~/.cache/huggingface`) | `ls hub`, `du -sh hub/* datasets/*` | Delete unused `datasets--*`/`models--*` and `datasets/` | Files may live in shared `hub/blobs`; keep blobs a kept model's snapshot links to (`readlink`). |
+| Hugging Face (`~/.cache/huggingface`) | `hf cache ls` | Preview `hf cache rm <id> --dry-run`; after approval, `hf cache rm <id> --yes` | Use the exact IDs and cache directory reviewed. Let the CLI manage snapshot/blob references. |
 | Other `~/.cache` | `du -xhd1 ~/.cache` | Delete folders of tools no longer used | Training outputs here are not re-downloadable. |
 | JS folders and package caches | — | See `SKILL.md` | — |
 | mise runtimes (`~/.local/share/mise`) | `mise ls`, `mise prune --dry-run` | `mise uninstall node@X` | Each Node version holds its own global npm packages. Check `.nvmrc`/`.node-version` pins. |
 | Global npm packages | `du -sh "$(npm root -g)"/* \| sort -rh` | `npm uninstall -g <pkg>` | Duplicates may exist via bun or Homebrew (`which -a`). |
 | Duplicate Rust | `which cargo`, `rustup toolchain list` | `rustup toolchain uninstall stable` | Never `rustup self uninstall`: it deletes `~/.cargo` and its `cargo install` tools. |
 | Xcode (`~/Library/Developer/Xcode`) | `du -xhd1` | Delete old `iOS DeviceSupport/<version>` | Counts as Developer. Rebuilt when a device connects. |
+
+Hugging Face cache locations can be overridden by `HF_HOME` or `HF_HUB_CACHE`.
+For a custom location, use the same `--cache-dir PATH` for listing, preview,
+and removal. Check `hf cache --help` for the installed version before use.
+See the [official CLI guide](https://huggingface.co/docs/huggingface_hub/guides/cli#hf-cache)
+and [cache layout](https://huggingface.co/docs/huggingface_hub/en/guides/manage-cache):
+repository snapshots reference blobs within their repository cache directory.
 
 ## Find the active model before deleting others
 
@@ -105,6 +119,9 @@ with `brew untap <tap>`. Otherwise `brew uninstall` the formulae first. For a
 "taps are not trusted" warning, untap an unused tap or `brew trust <user>/<tap>`.
 Judge whether a formula is used with `brew info`, `grep -a <name> ~/.zsh_history`,
 and a dotfiles search.
+The script requires `brew` and `jq`; inventory or tap-list failures abort
+instead of labeling taps unused. `UNUSED` means no installed formulae or casks
+were found from the tap, not that the user has no reason to keep it.
 
 ## Login items disabled after a cleanup
 
@@ -122,6 +139,8 @@ Allow in the Background is on for that app.
 
 ## Report
 
-Give a before/after table (free space from `df -h /System/Volumes/Data`, home
-size, estimated Documents), what was removed with sizes, anything that changed
-behavior (a CLI or skill that no longer works), and the next-largest options.
+Give a before/after table using the Available values from
+`df -k /System/Volumes/Data`, formatted for readability after calculating the
+observed change. Include what was removed with measured sizes, separate outcomes
+for deletion and pruning, any incomplete measurements or failures, anything
+that changed behavior, and the next-largest options.

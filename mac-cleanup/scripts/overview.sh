@@ -25,8 +25,8 @@ top() {
   fi
 }
 
-section "Free space"
-if ! df -h /System/Volumes/Data | tail -1; then
+section "Free space (KiB; df -k)"
+if ! df -k /System/Volumes/Data | tail -1; then
   status=1
 fi
 
