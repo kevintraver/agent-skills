@@ -1,35 +1,41 @@
 ---
 name: hn-most-commented-24h
 description: >-
-  Use this when asked for the most commented Hacker News story from the last 24
-  hours and an analysis of its comments.
+  Finds the most-commented Hacker News story from the last 24 hours, reads its
+  entire comment thread, and analyzes the discussion. Use when asked for the
+  most commented, most discussed, or most debated HN / Hacker News story or
+  article today or in the last day, or what HN is arguing about right now.
 ---
 # HN most-commented story (last 24h) + comment analysis
 
-## 1. Find the story
-- Fetch `https://hacker-news.firebaseio.com/v0/newstories.json` (500 newest IDs). Also union `topstories.json` and `beststories.json`, since 500 new IDs may not span a full 24h.
-- Fetch each `https://hacker-news.firebaseio.com/v0/item/{id}.json` (parallelize). Keep only `type == "story"` with `time` >= now - 86400.
-- Rank by `descendants` descending. Note the top 5 for context.
+## 1. Fetch
 
-Example:
-```python
-import json,urllib.request,time
-from concurrent.futures import ThreadPoolExecutor
-g=lambda u:json.load(urllib.request.urlopen(u))
-ids=set()
-for k in ['newstories','topstories','beststories']: ids|=set(g(f'https://hacker-news.firebaseio.com/v0/{k}.json'))
-cut=time.time()-86400
-items=list(ThreadPoolExecutor(40).map(lambda i:g(f'https://hacker-news.firebaseio.com/v0/item/{i}.json'),ids))
-s=sorted([d for d in items if d and d.get('type')=='story' and d.get('time',0)>=cut],key=lambda d:-(d.get('descendants') or 0))
+Run the bundled script (stdlib only, no installs). Do not write your own fetch code.
+
+```bash
+python3 -I <this-skill-dir>/scripts/hn_most_commented.py
 ```
 
-## 2. Read the comments
-- Run the hn-comment-analyzer skill's fetch on the winning story ID and read ALL comments per its rules (confirm count read matches total). If unavailable, walk the story's `kids` recursively via the item API.
+It ranks stories from the last 24h by comment count, fetches the winner's full comment tree, and prints JSON:
+
+- `story`: title, by, url, hn_url, comments, points, posted (already in local time)
+- `top`: the top 5 by comment count
+- `comments_file`: every live comment, one per line as `[author #id] text`, indented two spaces per reply depth; `¶` marks paragraph breaks
+- `comment_lines`: number of comments written to the file
+
+Options: `--hours N` for another window, `--story ID` to dump a specific story's comments, `--out PATH` to choose the file.
+
+## 2. Read every comment
+
+Read `comments_file` to the last line, paging with offset/limit if it is large. Confirm the lines read equal `comment_lines` before analyzing. `comment_lines` may be slightly below `story.comments` when comments were deleted or flagged; that's expected.
 
 ## 3. Report
-Title, author (`by`), URL, comment count, posted time (user's local time zone), then the analysis:
+
+Title (linked to `url`), author, comment count, points, posted time, and the HN discussion link, then:
+
 - Main themes and arguments
 - Overall sentiment (positive / negative / mixed)
 - Notable disagreements or heated sub-threads
 - Short summary of what readers care about most
-Append the top 5 by comment count for context.
+
+End with the `top` list for context.
