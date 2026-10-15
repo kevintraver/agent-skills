@@ -30,19 +30,29 @@ For a title or title fragment, the script uses [HN Search](https://hn.algolia.co
 
 The selected title and HN item link are printed to stderr; stdout remains JSON. Check the returned title before summarizing and include the matched HN link when starting from a title. If it is the wrong thread, refine the title or use the intended thread's ID/link.
 
-The script outputs JSON with the post metadata and nested comment tree.
+The script outputs JSON with the post metadata and the full nested comment tree (every readable comment).
 
 Algolia comment `points` may be null or missing and are not a reliable basis for upvote rankings, point distributions, or claims of community agreement. Story points describe the post, not individual comments. Base the summary on recurring themes, substantive arguments, and reply activity.
+
+## Read ALL comments (required)
+
+The summary must cover the entire thread, never just the first part.
+
+- Save the JSON to a file, then flatten it to text (author + text per comment, indented by depth).
+- If the flattened output is long or gets written to a file, page through it with repeated reads (offset/limit) until the very last line. Do not stop after the first page.
+- Before summarizing, confirm the number of comments you read equals the total comment count in the JSON. If not, keep reading.
+- Never say you read "about half" or a subset; if something truly couldn't be read, state exactly what was skipped.
 
 ## Summarization Workflow
 
 1. **Fetch**: Run the script with the user's URL, ID, or title; verify the selected story for title searches
-2. **Analyze**: Parse the JSON output, noting:
+2. **Read everything**: Follow "Read ALL comments" above
+3. **Analyze**: Parse the JSON output, noting:
    - Returned readable comment count and depth of discussion (filtered parents can shorten reply chains)
    - Top-level comment themes
    - Recurring perspectives and the arguments supporting them
    - Nested reply chains (indicate debate/discussion)
-3. **Summarize**: Generate the summary following the output format below
+4. **Summarize**: Generate the summary following the output format below
 
 ## Output Format
 
