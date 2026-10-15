@@ -58,7 +58,7 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
 1. Record available space in KiB, retaining the number for the final comparison:
 
    ```bash
-   cleanup_before_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 {print $4}')
+   cleanup_before_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 {print $(4)}')
    ```
 
    Stop if measurement fails; don't use an empty or missing value as zero.
@@ -102,7 +102,7 @@ Use it instead of an ad-hoc `find … -exec rm`; it encodes the safety rules.
 6. Run `clean-node --delete --from-plan FILE`, then measure again:
 
    ```bash
-   cleanup_after_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 {print $4}')
+   cleanup_after_kib=$(df -k /System/Volumes/Data | awk 'NR == 2 {print $(4)}')
    awk -v before="$cleanup_before_kib" -v after="$cleanup_after_kib" \
      'BEGIN {printf "Observed free-space change: %+.2f GiB (%+.0f KiB)\n", (after-before)/1048576, after-before}'
    ```
@@ -129,10 +129,15 @@ Offer these when the user wants more space. Each refills on demand.
 |---|---|---|
 | pnpm store, current | `du -sh "$(pnpm store path)"` | `pnpm store prune` |
 | pnpm stores from older pnpm majors | `ls ~/Library/pnpm/store` | `rm -rf` each `v<N>` that isn't `pnpm store path` |
-| pnpm metadata | `du -xhd1 ~/Library/Caches/pnpm` | `pnpm cache prune` |
-| npm | `du -sh ~/.npm/_cacache ~/.npm/_npx` | `npm cache clean --force`; `rm -rf ~/.npm/_npx` |
-| bun | `du -sh ~/.bun/install/cache` | `rm -rf ~/.bun/install/cache` (`bun pm cache rm` needs a project dir) |
+| pnpm metadata from older pnpm majors | `du -xhd1 ~/Library/Caches/pnpm` (one `v<N>` per major) | `pnpm cache prune` (pnpm 12+: only removes the `v<N>` dirs this pnpm can't read) |
+| pnpm metadata, current | `pnpm cache list [glob]` | `pnpm cache delete <pattern>` |
+| npm | `du -sh ~/.npm/_cacache`; `npm cache verify` garbage-collects first | `npm cache clean --force` |
+| npx packages | `npm cache npx ls`; `du -sh ~/.npm/_npx` | `npm cache npx rm --force` (or `rm <key>` for one) |
+| bun | `du -sh ~/.bun/install/cache` | `rm -rf ~/.bun/install/cache` (`bun pm cache rm` only runs inside a project) |
 | Yarn classic | `du -sh "$(yarn cache dir)"` | `yarn cache clean` |
+
+`~/.bun/install/global` holds globally installed bun tools, not cache: remove
+unused ones with `bun remove -g <pkg>`.
 
 ## Never delete
 
@@ -142,6 +147,9 @@ Offer these when the user wants more space. Each refills on demand.
 - Anything `git ls-files <path>` reports as tracked.
 
 ## Script verification
+
+In skill markdown, write awk fields as `$(4)`, never a bare dollar sign
+followed by a digit: the skill loader replaces those with invocation arguments.
 
 After changing the scripts, run:
 
