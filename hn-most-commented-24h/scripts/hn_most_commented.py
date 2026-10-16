@@ -11,14 +11,17 @@ import json
 import re
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
 
 FIREBASE = "https://hacker-news.firebaseio.com/v0"
-ALGOLIA = "https://hn.algolia.com/api/v1/search"
-LISTS = ["newstories", "topstories", "beststories"]
+ALGOLIA = "https://hn.algolia.com/api/v1/search_by_date"
+ALGOLIA_MAX_HITS = 1000
+# Algolia's comment counts can lag, so re-check this many leaders against Firebase.
+VERIFY = 30
 
 
 def get_json(url, attempts=3):
@@ -36,16 +39,31 @@ def item(item_id):
     return get_json(f"{FIREBASE}/item/{item_id}.json")
 
 
-def candidate_ids(cutoff):
-    ids = set()
-    for name in LISTS:
-        ids |= set(get_json(f"{FIREBASE}/{name}.json"))
-    # The Firebase lists can miss stories that fell off them; Algolia covers the window.
-    hits = get_json(
-        f"{ALGOLIA}?tags=story&hitsPerPage=1000&numericFilters=created_at_i>{int(cutoff)}"
-    )["hits"]
-    ids |= {int(h["objectID"]) for h in hits}
-    return ids
+def algolia_counts(cutoff):
+    """Map story/poll id -> comment count for everything posted after cutoff."""
+    counts = {}
+    before = None
+    # Algolia returns at most 1000 hits per query, so walk backward through time.
+    while True:
+        filters = f"created_at_i>{int(cutoff)}"
+        if before:
+            filters += f",created_at_i<={before}"
+        query = urllib.parse.urlencode(
+            {"tags": "(story,poll)", "hitsPerPage": ALGOLIA_MAX_HITS, "numericFilters": filters}
+        )
+        hits = get_json(f"{ALGOLIA}?{query}")["hits"]
+        counts |= {int(h["objectID"]): h.get("num_comments") or 0 for h in hits}
+        if len(hits) < ALGOLIA_MAX_HITS:
+            return counts
+        before = min(h["created_at_i"] for h in hits)
+
+
+def candidate_ids(cutoff, top):
+    counts = algolia_counts(cutoff)
+    leaders = sorted(counts, key=lambda i: -counts[i])[: max(VERIFY, top * 2)]
+    # Brand-new stories may not be indexed by Algolia yet.
+    unindexed = set(get_json(f"{FIREBASE}/newstories.json")) - counts.keys()
+    return set(leaders) | unindexed
 
 
 def local_time(ts):
@@ -65,11 +83,24 @@ def story_summary(s):
     }
 
 
-def clean(text):
+def clean_inline(text):
     text = re.sub(r"<p>", " ¶ ", text)
     text = re.sub(r'<a href="([^"]*)"[^>]*>[^<]*</a>', r"\1", text)
     text = re.sub(r"<[^>]+>", "", text)
     return re.sub(r"\s+", " ", html.unescape(text)).strip()
+
+
+def clean(text):
+    # Code blocks keep their line breaks as ⏎ so the code stays readable on one line.
+    parts = re.split(r"<pre><code>(.*?)</code></pre>", text, flags=re.S)
+    out = []
+    for i, part in enumerate(parts):
+        if i % 2:
+            code = html.unescape(re.sub(r"<[^>]+>", "", part)).strip("\n")
+            out.append("`" + " ⏎ ".join(line.rstrip() for line in code.split("\n")) + "`")
+        else:
+            out.append(clean_inline(part))
+    return " ".join(p for p in out if p)
 
 
 def fetch_tree(pool, root):
@@ -85,14 +116,27 @@ def fetch_tree(pool, root):
     return tree
 
 
-def flatten(tree, kids, depth, lines):
+def flatten(tree, kids, depth):
+    """Return (lines, live_count). Gone comments with live replies become placeholders."""
+    lines, live = [], 0
     for kid in kids:
         it = tree.get(kid)
         if not it:
             continue
-        if not (it.get("deleted") or it.get("dead")):
-            lines.append(f"{'  ' * depth}[{it.get('by')} #{it['id']}] {clean(it.get('text', ''))}")
-        flatten(tree, it.get("kids", []), depth + 1, lines)
+        replies, reply_live = flatten(tree, it.get("kids", []), depth + 1)
+        indent = "  " * depth
+        if it.get("deleted"):
+            if replies:
+                lines.append(f"{indent}[deleted #{it['id']}]")
+        elif it.get("dead"):
+            if replies:
+                lines.append(f"{indent}[flagged #{it['id']}]")
+        else:
+            lines.append(f"{indent}[{it.get('by')} #{it['id']}] {clean(it.get('text', ''))}")
+            live += 1
+        lines += replies
+        live += reply_live
+    return lines, live
 
 
 def main():
@@ -109,11 +153,14 @@ def main():
             story = item(args.story)
         else:
             cutoff = time.time() - args.hours * 3600
-            items = pool.map(item, candidate_ids(cutoff))
+            items = pool.map(item, candidate_ids(cutoff, args.top))
             stories = [
                 s
                 for s in items
-                if s and s.get("type") == "story" and not s.get("dead") and s.get("time", 0) >= cutoff
+                if s
+                and s.get("type") in ("story", "poll")
+                and not s.get("dead")
+                and s.get("time", 0) >= cutoff
             ]
             stories.sort(key=lambda s: -(s.get("descendants") or 0))
             top = [story_summary(s) for s in stories[: args.top]]
@@ -121,8 +168,7 @@ def main():
 
         tree = fetch_tree(pool, story)
 
-    lines = []
-    flatten(tree, story.get("kids", []), 0, lines)
+    lines, live = flatten(tree, story.get("kids", []), 0)
     out = args.out or Path(tempfile.mkstemp(prefix=f"hn-{story['id']}-", suffix=".txt")[1])
     out.write_text("\n".join(lines) + "\n")
 
@@ -131,8 +177,9 @@ def main():
             {
                 "story": story_summary(story),
                 "comments_file": str(out),
-                "comment_lines": len(lines),
-                "deleted_or_dead": len(tree) - len(lines),
+                "file_lines": len(lines),
+                "live_comments": live,
+                "deleted_or_dead": len(tree) - live,
                 "top": top,
             },
             indent=2,
