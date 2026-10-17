@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Find the most-commented HN story in a time window and dump its full comment tree.
+"""Dump a Hacker News story's full comment tree.
+
+The story is an HN item URL, a numeric ID, or a title searched with HN Search.
+With no story given, it is the most-commented story of the last --hours.
 
 Prints a JSON summary to stdout and writes every live comment to a text file,
 one per line, indented two spaces per reply depth.
@@ -9,6 +12,7 @@ import argparse
 import html
 import json
 import re
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -19,6 +23,7 @@ from pathlib import Path
 
 FIREBASE = "https://hacker-news.firebaseio.com/v0"
 ALGOLIA = "https://hn.algolia.com/api/v1/search_by_date"
+ALGOLIA_SEARCH = "https://hn.algolia.com/api/v1/search"
 ALGOLIA_MAX_HITS = 1000
 # Algolia's comment counts can lag, so re-check this many leaders against Firebase.
 VERIFY = 30
@@ -64,6 +69,50 @@ def candidate_ids(cutoff, top):
     # Brand-new stories may not be indexed by Algolia yet.
     unindexed = set(get_json(f"{FIREBASE}/newstories.json")) - counts.keys()
     return set(leaders) | unindexed
+
+
+def extract_id(target):
+    """Return the item ID in an HN URL or numeric string, or None for a title."""
+    if target.isdigit():
+        return int(target)
+    if not re.match(r"https?://", target, re.I):
+        return None
+    url = urllib.parse.urlparse(target)
+    found = None
+    if url.hostname == "news.ycombinator.com" and url.path == "/item":
+        found = urllib.parse.parse_qs(url.query).get("id", [None])[0]
+    elif url.hostname == "hn.algolia.com":
+        m = re.fullmatch(r"/(?:api/v1/)?items/(\d+)/?", url.path)
+        found = m and m[1]
+    if found and found.isdigit():
+        return int(found)
+    sys.exit("Use an HN item URL, a numeric ID, or a title (--title for URL-like titles).")
+
+
+def normalize_title(title):
+    return " ".join(title.split()).lower()
+
+
+def search_title(title):
+    """Prefer an exact title match among HN Search's top 50, else its top result."""
+    query = urllib.parse.urlencode(
+        {"query": title, "tags": "story", "restrictSearchableAttributes": "title", "hitsPerPage": 50}
+    )
+    hits = [
+        h
+        for h in get_json(f"{ALGOLIA_SEARCH}?{query}")["hits"]
+        if str(h.get("objectID", "")).isdigit() and (h.get("title") or "").strip()
+    ]
+    if not hits:
+        sys.exit(f"No HN stories found for title: {json.dumps(title)}")
+    want = normalize_title(title)
+    match = next((h for h in hits if normalize_title(h["title"]) == want), hits[0])
+    print(
+        f"Matched HN story: {json.dumps(match['title'])} — "
+        f"https://news.ycombinator.com/item?id={match['objectID']}",
+        file=sys.stderr,
+    )
+    return int(match["objectID"])
 
 
 def local_time(ts):
@@ -141,16 +190,23 @@ def flatten(tree, kids, depth):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("story", nargs="?", help="HN item URL, numeric ID, or story title")
+    ap.add_argument("--title", action="store_true", help="always treat STORY as a title")
     ap.add_argument("--hours", type=float, default=24)
     ap.add_argument("--top", type=int, default=5)
-    ap.add_argument("--story", type=int, help="skip ranking and dump this story's comments")
     ap.add_argument("--out", type=Path, help="comments file (default: a new temp file)")
     args = ap.parse_args()
+    target = (args.story or "").strip()
+    if args.title and not target:
+        ap.error("--title needs a STORY title")
 
     with ThreadPoolExecutor(40) as pool:
         top = []
-        if args.story:
-            story = item(args.story)
+        if target:
+            story_id = None if args.title else extract_id(target)
+            story = item(search_title(target) if story_id is None else story_id)
+            if not story:
+                sys.exit(f"HN item not found: {target}")
         else:
             cutoff = time.time() - args.hours * 3600
             items = pool.map(item, candidate_ids(cutoff, args.top))
