@@ -1,0 +1,145 @@
+#!/bin/bash
+# Host-side helper for Lume sandbox VMs.
+#
+#   sbx ssh <vm> [cmd...]              SSH as lume (stdin forwarded, unlike `lume ssh`)
+#   sbx scp <vm> <src>... <dest>       copy; prefix guest paths with ':' (e.g. :Library/Logs/x.log)
+#   sbx up <base> <name> [--headless]  clone a frozen base, boot it, wait for SSH
+#   sbx boot <vm> [--headless]         boot an existing VM, wait for SSH
+#   sbx freeze <vm>                    graceful shutdown, wait until stopped
+#   sbx down <name>                    stop and delete a run clone (refuses *-base)
+#   sbx grants <vm> [filter]           list TCC grants from the system TCC.db (SIP-off guests)
+#   sbx pane <vm> <accessibility|input-monitoring|screen-recording|automation>
+#                                      open that Privacy & Security pane in the guest
+#
+# SSH uses the public key at $LUME_SANDBOX_PUBKEY (default ~/.ssh/lume_sandbox.pub);
+# the private key is expected in an SSH agent (e.g. 1Password), never on disk.
+set -euo pipefail
+
+PUBKEY="${LUME_SANDBOX_PUBKEY:-$HOME/.ssh/lume_sandbox.pub}"
+LOG_DIR="${LUME_SANDBOX_LOGS:-$HOME/.lume/logs}"
+SSH_OPTS=(-i "$PUBKEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no
+  -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
+
+die() { echo "sbx: $*" >&2; exit 1; }
+
+vm_ip() {
+  lume get "$1" --format json 2>/dev/null | jq -r '.[0].ipAddress // empty'
+}
+
+vm_status() {
+  lume get "$1" --format json 2>/dev/null | jq -r '.[0].status // empty'
+}
+
+require_ip() {
+  local ip
+  ip="$(vm_ip "$1")"
+  [ -n "$ip" ] || die "no IP for '$1' (is it running?)"
+  echo "$ip"
+}
+
+require_vm_slot() {
+  local running
+  running="$(lume ls --format json 2>/dev/null | jq -r '[.[] | select(.status == "running") | .name] | join(", ")')"
+  if [ -n "$running" ] && [ "$(echo "$running" | tr ',' '\n' | wc -l)" -ge 2 ]; then
+    die "2 macOS VMs already running ($running); Apple's limit is 2 per host"
+  fi
+}
+
+start_vm() {
+  local vm="$1" headless="$2"
+  require_vm_slot
+  local args=(run "$vm")
+  [ "$headless" = 1 ] && args+=(--display none)
+  mkdir -p "$LOG_DIR"
+  nohup lume "${args[@]}" >"$LOG_DIR/$vm.log" 2>&1 &
+  disown
+}
+
+wait_ssh() {
+  local vm="$1" ip
+  for _ in $(seq 1 60); do
+    ip="$(vm_ip "$vm")"
+    if [ -n "$ip" ] && ssh "${SSH_OPTS[@]}" "lume@$ip" true 2>/dev/null; then
+      echo "$vm $ip"
+      return
+    fi
+    sleep 3
+  done
+  die "'$vm' did not answer SSH within 3 minutes (log: $LOG_DIR/$vm.log)"
+}
+
+cmd="${1:-}"
+[ -n "$cmd" ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+shift
+
+case "$cmd" in
+  ssh)
+    vm="${1:?usage: sbx ssh <vm> [cmd...]}"; shift
+    exec ssh "${SSH_OPTS[@]}" "lume@$(require_ip "$vm")" "$@"
+    ;;
+  scp)
+    vm="${1:?usage: sbx scp <vm> <src>... <dest>}"; shift
+    ip="$(require_ip "$vm")"
+    args=()
+    for a in "$@"; do
+      case "$a" in
+        :*) args+=("lume@$ip$a") ;;
+        *) args+=("$a") ;;
+      esac
+    done
+    exec scp -r "${SSH_OPTS[@]}" "${args[@]}"
+    ;;
+  up)
+    base="${1:?usage: sbx up <base> <name> [--headless]}"; name="${2:?usage: sbx up <base> <name> [--headless]}"
+    headless=0; [ "${3:-}" = --headless ] && headless=1
+    [ "$(vm_status "$base")" = stopped ] || die "base '$base' must exist and be stopped"
+    lume clone "$base" "$name" >/dev/null
+    start_vm "$name" "$headless"
+    wait_ssh "$name"
+    ;;
+  boot)
+    vm="${1:?usage: sbx boot <vm> [--headless]}"
+    headless=0; [ "${2:-}" = --headless ] && headless=1
+    [ "$(vm_status "$vm")" = running ] || start_vm "$vm" "$headless"
+    wait_ssh "$vm"
+    ;;
+  freeze)
+    vm="${1:?usage: sbx freeze <vm>}"
+    if [ "$(vm_status "$vm")" = running ]; then
+      ssh "${SSH_OPTS[@]}" "lume@$(require_ip "$vm")" sync 2>/dev/null || true
+      lume shutdown "$vm" >/dev/null 2>&1 || lume stop "$vm" >/dev/null
+    fi
+    for _ in $(seq 1 40); do
+      [ "$(vm_status "$vm")" = stopped ] && { echo "$vm stopped"; exit 0; }
+      sleep 3
+    done
+    lume stop "$vm" >/dev/null && echo "$vm force-stopped"
+    ;;
+  down)
+    name="${1:?usage: sbx down <name>}"
+    case "$name" in *-base) die "refusing to delete base '$name'; use lume delete directly" ;; esac
+    lume stop "$name" >/dev/null 2>&1 || true
+    lume delete "$name" --force >/dev/null
+    echo "$name deleted"
+    ;;
+  grants)
+    vm="${1:?usage: sbx grants <vm> [filter]}"; filter="${2:-}"
+    ssh "${SSH_OPTS[@]}" "lume@$(require_ip "$vm")" \
+      "sudo sqlite3 '/Library/Application Support/com.apple.TCC/TCC.db' \"select service, client, auth_value from access where client like '%${filter}%' order by client, service;\""
+    ;;
+  pane)
+    vm="${1:?usage: sbx pane <vm> <pane>}"
+    case "${2:-}" in
+      accessibility) anchor=Privacy_Accessibility ;;
+      input-monitoring) anchor=Privacy_ListenEvent ;;
+      screen-recording) anchor=Privacy_ScreenCapture ;;
+      automation) anchor=Privacy_Automation ;;
+      *) die "pane must be accessibility, input-monitoring, screen-recording or automation" ;;
+    esac
+    ssh "${SSH_OPTS[@]}" "lume@$(require_ip "$vm")" \
+      "open 'x-apple.systempreferences:com.apple.preference.security?$anchor'"
+    ;;
+  *)
+    die "unknown command '$cmd' (run sbx with no arguments for help)"
+    ;;
+esac
