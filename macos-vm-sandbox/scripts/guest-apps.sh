@@ -1,7 +1,7 @@
 #!/bin/bash
 # App layer. Runs inside the guest as `lume`; installs Homebrew formulas and
 # casks, then clears quarantine so Gatekeeper dialogs don't interrupt tests:
-#   sbx ssh <vm> 'bash -s -- neovim --cask zen obsidian' < guest-apps.sh
+#   sbx ssh <vm> 'bash -s -- ripgrep --cask firefox' < guest-apps.sh
 # App bundles copied in with `sbx scp` land in ~/Applications and are
 # de-quarantined too.
 set -euo pipefail
@@ -28,6 +28,7 @@ for app in /Applications/*.app ~/Applications/*.app; do
 done
 
 echo "== Installed"
-for c in "${casks[@]}"; do brew info --cask --json=v2 "$c" | jq -r '.casks[0] | "\(.token) \(.installed)"'; done
-for f in "${formulas[@]}"; do brew list --versions "$f"; done
+# ${arr[@]+...}: macOS bash 3.2 treats an empty array as unbound under set -u.
+for c in ${casks[@]+"${casks[@]}"}; do brew info --cask --json=v2 "$c" | jq -r '.casks[0] | "\(.token) \(.installed)"'; done
+for f in ${formulas[@]+"${formulas[@]}"}; do brew list --versions "$f"; done
 ls -d ~/Applications/*.app 2>/dev/null || true

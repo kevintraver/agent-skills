@@ -1,0 +1,109 @@
+#!/bin/bash
+# Run scenario files, each in a fresh clone of its base, and collect results.
+#
+#   run-scenarios [--build path/App.app] [--rules rules.md] [--out dir] <scenario>...
+#
+# A scenario names its base in a header line within its first 10 lines, plus
+# optional guest paths to collect (relative to the guest's home):
+#   # base: myapp-base                (.sh)   <!-- base: myapp-base -->  (.md)
+#   # collect: Library/Logs/App/app.log screenshots
+#
+#   *.sh  scripted: runs in the guest with bash; exit 0 = pass.
+#   *.md  agent: guest Claude runs the scenario (rules file prepended) and must
+#         write ~/report.md. Needs CLAUDE_CODE_OAUTH_TOKEN in the host env; it
+#         reaches the guest through stdin, never on a command line.
+#
+# --build replaces that bundle in the clone's ~/Applications first (it must keep
+# the base's signing identity, or the clone loses the app's TCC grants).
+# Status per scenario: pass/fail (.sh), done/fail (.md; read report.md).
+# Runs as many scenarios at once as there are free VM slots (Apple's limit is
+# 2 macOS VMs per host). Results land in <out>/<timestamp>/<scenario>/.
+set -euo pipefail
+set -f  # collect paths are guest globs; never expand them on the host
+
+SBX="$(cd "$(dirname "$0")" && pwd)/sbx"
+build="" rules="" out="results"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --build) build="$2"; shift 2 ;;
+    --rules) rules="$2"; shift 2 ;;
+    --out) out="$2"; shift 2 ;;
+    *) break ;;
+  esac
+done
+[ $# -gt 0 ] || { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+
+header() {  # header <file> <key>
+  head -10 "$1" | sed -n "s/^[#<!-]*[[:space:]]*$2:[[:space:]]*\([^>]*[^>[:space:]-]\).*/\1/p" | head -1
+}
+
+for f in "$@"; do
+  [ -n "$(header "$f" base)" ] || { echo "run-scenarios: $f has no 'base:' header" >&2; exit 1; }
+  case "$f" in
+    *.md) [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "run-scenarios: $f needs CLAUDE_CODE_OAUTH_TOKEN" >&2; exit 1; } ;;
+    *.sh) ;;
+    *) echo "run-scenarios: $f must be .sh or .md" >&2; exit 1 ;;
+  esac
+done
+
+running="$(lume ls --format json | jq '[.[] | select(.status == "running")] | length')"
+slots=$((2 - running))
+[ "$slots" -gt 0 ] || { echo "run-scenarios: 2 VMs already running; no free slot" >&2; exit 1; }
+
+dir="$out/$(date +%Y%m%d-%H%M%S)"
+mkdir -p "$dir"
+
+# Explicit `|| return`: set -e is ignored inside a function called from `if`.
+steps() {  # steps <file> <vm> <base>
+  "$SBX" up "$3" "$2" --headless || return
+  if [ -n "$build" ]; then
+    # Replace the bundle rather than copy over it: stale files break its signature.
+    "$SBX" ssh "$2" "rm -rf ~/Applications/'$(basename "$build")'" || return
+    "$SBX" scp "$2" "$build" :Applications/ || return
+  fi
+  case "$1" in
+    *.sh)
+      "$SBX" scp "$2" "$1" :scenario.sh || return
+      "$SBX" ssh "$2" 'bash ~/scenario.sh' </dev/null ;;
+    *.md)
+      "$SBX" scp "$2" "$1" :scenario.md || return
+      [ -z "$rules" ] || "$SBX" scp "$2" "$rules" :rules.md || return
+      printf '%s' "$CLAUDE_CODE_OAUTH_TOKEN" | "$SBX" ssh "$2" \
+        'IFS= read -r t; CLAUDE_CODE_OAUTH_TOKEN="$t" ~/.local/bin/claude --dangerously-skip-permissions -p "$(cat ~/rules.md 2>/dev/null; echo; cat ~/scenario.md)"' ;;
+  esac
+}
+
+run_one() {
+  local f="$1" stem vm res status collect
+  stem="$(basename "${f%.*}")"
+  vm="run-$stem"
+  res="$dir/$stem"
+  mkdir -p "$res"
+  if steps "$f" "$vm" "$(header "$f" base)" >"$res/run.log" 2>&1; then
+    # An agent run that exits 0 only finished; its verdict is in report.md.
+    case "$f" in *.md) status=done ;; *) status=pass ;; esac
+  else
+    status=fail
+  fi
+  collect="$(header "$f" collect)"
+  case "$f" in *.md) collect="report.md $collect" ;; esac
+  for p in $collect; do
+    "$SBX" scp "$vm" ":$p" "$res/" >>"$res/run.log" 2>&1 || echo "collect failed: $p" >>"$res/run.log"
+  done
+  "$SBX" down "$vm" >>"$res/run.log" 2>&1 || true
+  echo "$status" >"$res/status"
+  echo "$status  $stem"
+}
+
+pids=()
+for f in "$@"; do
+  run_one "$f" &
+  pids+=($!)
+  if [ "${#pids[@]}" -ge "$slots" ]; then
+    wait "${pids[@]}"
+    pids=()
+  fi
+done
+[ "${#pids[@]}" -eq 0 ] || wait "${pids[@]}"
+
+echo "results: $dir"

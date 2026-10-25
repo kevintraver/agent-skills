@@ -7,7 +7,11 @@ description: Build and use disposable macOS sandbox VMs on Apple silicon with Lu
 
 Disposable macOS guests on Apple silicon. Lume runs the VMs (Apple Virtualization.framework). Cua Driver, inside the guest, gives an agent screenshots, the accessibility tree, clicks and keys over MCP. A frozen base acts as the snapshot: every run is a copy-on-write clone that gets deleted afterwards.
 
-`scripts/sbx` is the host-side CLI (`ssh`, `scp`, `up`, `boot`, `freeze`, `down`, `grants`, `pane`). Run it with no arguments for usage. Commands below call it `sbx`; use its full path.
+Paths below (`scripts/…`, `references/…`) are relative to this skill's directory; use full paths when running them. Bundled scripts:
+
+- `scripts/sbx`: host-side CLI (`ssh`, `scp`, `up`, `boot`, `freeze`, `down`, `grants`, `pane`). Run it with no arguments for usage. Commands below call it `sbx`. `up` and `boot` also start the Cua Driver daemon and mute the guest.
+- `scripts/run-scenarios`: runs scenario files in fresh clones and collects results (references/agents.md).
+- `scripts/hidtype.swift`: full-fidelity keyboard input (references/input.md).
 
 ## Layered bases
 
@@ -35,35 +39,28 @@ cua-base            generic: Homebrew, jq, cliclick, Claude Code, Cua Driver + i
 
    To enable the app's debug logging, use its UI if you can. To set it from the shell: quit the app first (a running app overwrites its UserDefaults on quit), **merge** the key into the existing preferences rather than replacing the domain or a whole settings blob, relaunch, and confirm the log file appears. Then `sbx freeze <app>-base`.
 
-   **Smoke-test in a clone, never in the base.** Run `sbx up <app>-base smoke-1 --headless`, then:
-   - start the Cua Driver daemon (it isn't running after boot): `open -n -g -a /Applications/CuaDriver.app --args serve`
-   - check `cua-driver permissions status --json`
-   - take one real screenshot: `cua-driver call get_desktop_state '{"screenshot_out_file":"/tmp/s.png"}'`
+   **Smoke-test in a clone, never in the base.** Run `sbx up <app>-base smoke-1 --headless`, then over `sbx ssh smoke-1`:
+   - check `~/.local/bin/cua-driver permissions status --json`
+   - take one real screenshot: `~/.local/bin/cua-driver call get_desktop_state '{"screenshot_out_file":"/tmp/s.png"}'`
    - prove input delivery (references/input.md)
 
    Then `sbx down smoke-1`. If anything fails, fix the base by clone → edit → refreeze; never clean up a base in place.
-4. **Run:** `sbx up <app>-base run-<name> [--headless]` → do the work → collect artifacts with `sbx scp` → `sbx down run-<name>`.
-5. **Agent placement and scenario runners:** see [references/agents.md](references/agents.md).
-6. **Hand off** (when another session will do the testing): send one message, only after the bases are frozen and the smoke test passed. Point it at this skill and `sbx`. If it was earlier told to use ad-hoc helpers, repoint it and retire those helpers in the same step.
+4. **Run:** `sbx up <app>-base run-<name> [--headless]` → do the work → collect artifacts with `sbx scp` → `sbx down run-<name>`. For a batch of scenarios, use `scripts/run-scenarios`.
+5. **Choose where the agent runs** (scripted, Claude in the guest, or Claude on the host): see [references/agents.md](references/agents.md).
+6. **Hand off** (when another session will do the testing): send one message, only after the bases are frozen and the smoke test passed. Point it at this skill and `sbx`.
 
 ## Input fidelity (read before testing anything that watches the keyboard)
 
-Cua Driver's defaults avoid stealing focus, so some routes never reach event taps, input methods or keyboard hooks:
-
-- `type_text` inserts through `AXSetAttribute(kAXSelectedText)` in every mode. **No key events are generated.**
-- `press_key`, `hotkey` and `click` default to `delivery_mode: "background"`, which posts to the target pid and **bypasses session and HID event taps**.
-- `delivery_mode: "foreground"` (requires `window_id`) reaches session taps, but key events carry **only a keycode, no Unicode text**. Apps that read the event's text see untranslatable letters.
-- Verified for full-fidelity typing: HID-state `CGEvent`s posted at `.cghidEventTap` with real modifier key-down/up events, run as root in the GUI session (`sudo launchctl asuser $(id -u lume) <tool>`).
-
-Prove delivery with letters, Shift and Escape before trusting results, using the app's own log as the oracle. Routes, a ground-truth tap and the recipe are in [references/input.md](references/input.md).
+Cua Driver's default routes (`type_text`, background `press_key`) never reach event taps, input methods or keyboard hooks, and foreground keys carry no text. They report success anyway, so tests pass falsely. Prove delivery with letters, Shift and Escape before trusting results, using the app's own log as the oracle. Routes, `hidtype` and the proof recipe are in [references/input.md](references/input.md).
 
 ## Gotchas
 
 - At most **2 macOS VMs run at once** per host (Apple's license, enforced by the framework), and that includes VMs other sessions started. `sbx up`/`boot` refuse when two are already running; check `lume ls` before planning parallel runs.
 - **Every VM, even with `--display none`, starts a VNC server on the host's LAN address** (`external=vnc://…@<lan-ip>:<port>` in `~/.lume/logs/<vm>.log`). That's password-only access to a guest with SIP off and passwordless sudo. Run sandboxes only on trusted networks, or block the port in the host firewall.
-- Commands sent through `sbx ssh` run in the guest's **zsh**: an unmatched glob aborts the whole line, and macOS has no `timeout`. Wrap glob-bearing commands in `bash -c '…'`, and bound long commands with `(cmd >/tmp/x.log 2>&1 &); sleep N; cat /tmp/x.log`.
+- Commands sent through `sbx ssh` run in the guest's **zsh** with PATH `/usr/bin:/bin:/usr/sbin:/sbin`: use full paths (`~/.local/bin/cua-driver`, `~/.local/bin/claude`, `/opt/homebrew/bin/…`). An unmatched glob aborts the whole line, and macOS has no `timeout`. Wrap glob-bearing commands in `bash -c '…'`, and bound long commands with `(cmd >/tmp/x.log 2>&1 &); sleep N; cat /tmp/x.log`.
 - The guest can't be newer than the host. The macOS version is fixed by the image; see setup.md for choices.
-- `lume` 0.6.1 has **no `cp`**, even though its docs list one, and `lume ssh` **drops stdin**. Use `sbx scp` and `sbx ssh`.
+- The Lume notes here were checked against **lume 0.6.1**; if `lume --version` differs, recheck them. In 0.6.1 there is **no `cp`**, even though its docs list one, and `lume ssh` **drops stdin**. Use `sbx scp` and `sbx ssh`.
+- **A guest's sound plays on the host**, including the beep for every key an app rejects, and the guest's microphone input is the host's. Lume attaches both with no setting to turn them off. `sbx up`/`boot` mute the output; the microphone stays live.
 - Lume's native viewer doesn't scale the guest display. Keep it at 1024×768 or the window gets cut off.
 - Keep secrets out of frozen bases: no tokens, private keys or personal files. Inject per run.
 - iCloud and Apple ID features are unreliable in VMs. Apps that need a phone-linked account (Signal, WhatsApp) need a dedicated test account; prefer apps that work signed out.

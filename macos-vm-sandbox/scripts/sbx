@@ -3,8 +3,9 @@
 #
 #   sbx ssh <vm> [cmd...]              SSH as lume (stdin forwarded, unlike `lume ssh`)
 #   sbx scp <vm> <src>... <dest>       copy; prefix guest paths with ':' (e.g. :Library/Logs/x.log)
-#   sbx up <base> <name> [--headless]  clone a frozen base, boot it, wait for SSH
-#   sbx boot <vm> [--headless]         boot an existing VM, wait for SSH
+#   sbx up <base> <name> [--headless]  clone a frozen base, boot it, wait for SSH, then
+#                                      start the Cua Driver daemon and mute the guest
+#   sbx boot <vm> [--headless]         boot an existing VM, wait for SSH (and prep it like up)
 #   sbx freeze <vm>                    graceful shutdown, wait until stopped
 #   sbx down <name>                    stop and delete a run clone (refuses *-base)
 #   sbx grants <vm> [filter]           list TCC grants from the system TCC.db (SIP-off guests)
@@ -68,8 +69,16 @@ wait_ssh() {
   die "'$vm' did not answer SSH within 3 minutes (log: $LOG_DIR/$vm.log)"
 }
 
+# After boot the Cua Driver daemon isn't running, and the guest's audio plays on
+# the host (Lume always attaches it), so start one and mute the other. Before
+# Cua Driver is installed (building cua-base), only mute.
+prep_session() {
+  ssh "${SSH_OPTS[@]}" "lume@$(require_ip "$1")" \
+    "{ [ ! -d /Applications/CuaDriver.app ] || open -n -g -a /Applications/CuaDriver.app --args serve; } && sudo launchctl asuser \$(id -u) osascript -e 'set volume output muted true' -e 'set volume alert volume 0'"
+}
+
 cmd="${1:-}"
-[ -n "$cmd" ] || { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[ -n "$cmd" ] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 shift
 
 case "$cmd" in
@@ -96,12 +105,18 @@ case "$cmd" in
     lume clone "$base" "$name" >/dev/null
     start_vm "$name" "$headless"
     wait_ssh "$name"
+    prep_session "$name"
     ;;
   boot)
     vm="${1:?usage: sbx boot <vm> [--headless]}"
     headless=0; [ "${2:-}" = --headless ] && headless=1
-    [ "$(vm_status "$vm")" = running ] || start_vm "$vm" "$headless"
-    wait_ssh "$vm"
+    if [ "$(vm_status "$vm")" = running ]; then
+      wait_ssh "$vm"
+    else
+      start_vm "$vm" "$headless"
+      wait_ssh "$vm"
+      prep_session "$vm"
+    fi
     ;;
   freeze)
     vm="${1:?usage: sbx freeze <vm>}"

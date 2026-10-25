@@ -28,8 +28,8 @@ Needs **Accessibility** and **Screen Recording**, plus two runtime consents (Sys
    The user clicks **Allow** on any direct-capture prompt in the VM window.
 3. Verify:
    ```sh
-   sbx ssh <vm> 'cua-driver permissions status --json'   # accessibility/screen_recording true, source.attribution "driver-daemon"
-   sbx ssh <vm> 'cua-driver list_apps "{}" >/dev/null && cua-driver call get_desktop_state "{}" >/dev/null && echo no-prompts'
+   sbx ssh <vm> '~/.local/bin/cua-driver permissions status --json'   # accessibility/screen_recording true, source.attribution "driver-daemon"
+   sbx ssh <vm> '~/.local/bin/cua-driver list_apps "{}" >/dev/null && ~/.local/bin/cua-driver call get_desktop_state "{}" >/dev/null && echo no-prompts'
    ```
    `status: unknown` means "rerun `permissions grant`", whether `daemon_running` is false (daemon gone) or true (daemon up but its real TCC status not read yet).
 
