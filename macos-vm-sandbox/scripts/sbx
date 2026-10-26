@@ -14,10 +14,13 @@
 #
 # SSH uses the public key at $LUME_SANDBOX_PUBKEY (default ~/.ssh/lume_sandbox.pub);
 # the private key is expected in an SSH agent (e.g. 1Password), never on disk.
+# up/boot wait $SBX_SSH_WAIT seconds (default 300) for SSH; two clones booting
+# at once each take longer than one alone.
 set -euo pipefail
 
 PUBKEY="${LUME_SANDBOX_PUBKEY:-$HOME/.ssh/lume_sandbox.pub}"
 LOG_DIR="${LUME_SANDBOX_LOGS:-$HOME/.lume/logs}"
+SSH_WAIT="${SBX_SSH_WAIT:-300}"
 SSH_OPTS=(-i "$PUBKEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no
   -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
 
@@ -58,7 +61,7 @@ start_vm() {
 
 wait_ssh() {
   local vm="$1" ip
-  for _ in $(seq 1 60); do
+  for _ in $(seq 1 $((SSH_WAIT / 3))); do
     ip="$(vm_ip "$vm")"
     if [ -n "$ip" ] && ssh "${SSH_OPTS[@]}" "lume@$ip" true 2>/dev/null; then
       echo "$vm $ip"
@@ -66,7 +69,7 @@ wait_ssh() {
     fi
     sleep 3
   done
-  die "'$vm' did not answer SSH within 3 minutes (log: $LOG_DIR/$vm.log)"
+  die "'$vm' did not answer SSH within ${SSH_WAIT}s (log: $LOG_DIR/$vm.log)"
 }
 
 # After boot the Cua Driver daemon isn't running, and the guest's audio plays on
@@ -77,8 +80,14 @@ prep_session() {
     "{ [ ! -d /Applications/CuaDriver.app ] || open -n -g -a /Applications/CuaDriver.app --args serve; } && sudo launchctl asuser \$(id -u) osascript -e 'set volume output muted true' -e 'set volume alert volume 0'"
 }
 
+delete_clone() {
+  case "$1" in *-base) die "refusing to delete base '$1'; use lume delete directly" ;; esac
+  lume stop "$1" >/dev/null 2>&1 || true
+  lume delete "$1" --force >/dev/null
+}
+
 cmd="${1:-}"
-[ -n "$cmd" ] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[ -n "$cmd" ] || { sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 shift
 
 case "$cmd" in
@@ -103,9 +112,12 @@ case "$cmd" in
     headless=0; [ "${3:-}" = --headless ] && headless=1
     [ "$(vm_status "$base")" = stopped ] || die "base '$base' must exist and be stopped"
     lume clone "$base" "$name" >/dev/null
+    # A failed boot would otherwise leave a running clone holding one of the two VM slots.
+    trap 'delete_clone "$name"; echo "sbx: deleted $name" >&2' EXIT
     start_vm "$name" "$headless"
     wait_ssh "$name"
     prep_session "$name"
+    trap - EXIT
     ;;
   boot)
     vm="${1:?usage: sbx boot <vm> [--headless]}"
@@ -132,9 +144,7 @@ case "$cmd" in
     ;;
   down)
     name="${1:?usage: sbx down <name>}"
-    case "$name" in *-base) die "refusing to delete base '$name'; use lume delete directly" ;; esac
-    lume stop "$name" >/dev/null 2>&1 || true
-    lume delete "$name" --force >/dev/null
+    delete_clone "$name"
     echo "$name deleted"
     ;;
   grants)

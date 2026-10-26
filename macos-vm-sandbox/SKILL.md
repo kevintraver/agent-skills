@@ -56,6 +56,7 @@ Cua Driver's default routes (`type_text`, background `press_key`) never reach ev
 ## Gotchas
 
 - At most **2 macOS VMs run at once** per host (Apple's license, enforced by the framework), and that includes VMs other sessions started. `sbx up`/`boot` refuse when two are already running; check `lume ls` before planning parallel runs.
+- **Two clones booting at once each boot slower**, past the SSH wait one boot alone fits in. `sbx up`/`boot` wait `$SBX_SSH_WAIT` seconds (default 300). `sbx up` deletes the clone it made when the boot fails, so a failed `up` never holds one of the two slots.
 - **Every VM, even with `--display none`, starts a VNC server on the host's LAN address** (`external=vnc://…@<lan-ip>:<port>` in `~/.lume/logs/<vm>.log`). That's password-only access to a guest with SIP off and passwordless sudo. Run sandboxes only on trusted networks, or block the port in the host firewall.
 - Commands sent through `sbx ssh` run in the guest's **zsh** with PATH `/usr/bin:/bin:/usr/sbin:/sbin`: use full paths (`~/.local/bin/cua-driver`, `~/.local/bin/claude`, `/opt/homebrew/bin/…`). An unmatched glob aborts the whole line, and macOS has no `timeout`. Wrap glob-bearing commands in `bash -c '…'`, and bound long commands with `(cmd >/tmp/x.log 2>&1 &); sleep N; cat /tmp/x.log`.
 - The guest can't be newer than the host. The macOS version is fixed by the image; see setup.md for choices.
