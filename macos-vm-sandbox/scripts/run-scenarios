@@ -1,7 +1,7 @@
 #!/bin/bash
-# Run scenario files, each in a fresh clone of its base, and collect results.
+# Run scenario files in clones of their bases and collect results.
 #
-#   run-scenarios [--build path/App.app] [--rules rules.md] [--out dir] <scenario>...
+#   run-scenarios [--build path/App.app] [--rules rules.md] [--out dir] [--fresh] <scenario>...
 #
 # A scenario names its base in a header line within its first 10 lines, plus
 # optional guest paths to collect (relative to the guest's home):
@@ -16,22 +16,27 @@
 # --build replaces that bundle in the clone's ~/Applications first (it must keep
 # the base's signing identity, or the clone loses the app's TCC grants).
 # Status per scenario: pass/fail (.sh), done/fail (.md; read report.md).
-# Runs as many scenarios at once as there are free VM slots (Apple's limit is
-# 2 macOS VMs per host). Results land in <out>/<timestamp>/<scenario>/.
+# Scenarios on one base share a clone, one after another; between them every
+# app but Finder is killed and the clipboard emptied, so a scenario that
+# collects logs should truncate them when it starts. --fresh gives each scenario
+# its own clone instead. Runs as many clones at once as there are free VM slots
+# (Apple's limit is 2 macOS VMs per host). Results land in
+# <out>/<timestamp>/<scenario>/.
 set -euo pipefail
 set -f  # collect paths are guest globs; never expand them on the host
 
 SBX="$(cd "$(dirname "$0")" && pwd)/sbx"
-build="" rules="" out="results"
+build="" rules="" out="results" fresh=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --build) build="$2"; shift 2 ;;
     --rules) rules="$2"; shift 2 ;;
     --out) out="$2"; shift 2 ;;
+    --fresh) fresh=1; shift ;;
     *) break ;;
   esac
 done
-[ $# -gt 0 ] || { sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
+[ $# -gt 0 ] || { sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 1; }
 
 header() {  # header <file> <key>
   head -10 "$1" | sed -n "s/^[#<!-]*[[:space:]]*$2:[[:space:]]*\([^>]*[^>[:space:]-]\).*/\1/p" | head -1
@@ -54,13 +59,26 @@ dir="$out/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$dir"
 
 # Explicit `|| return`: set -e is ignored inside a function called from `if`.
-steps() {  # steps <file> <vm> <base>
-  "$SBX" up "$3" "$2" --headless || return
-  if [ -n "$build" ]; then
-    # Replace the bundle rather than copy over it: stale files break its signature.
-    "$SBX" ssh "$2" "rm -rf ~/Applications/'$(basename "$build")'" || return
-    "$SBX" scp "$2" "$build" :Applications/ || return
-  fi
+prepare() {  # prepare <vm> <base>
+  "$SBX" up "$2" "$1" --headless || return
+  [ -n "$build" ] || return 0
+  # Replace the bundle rather than copy over it: stale files break its signature.
+  "$SBX" ssh "$1" "rm -rf ~/Applications/'$(basename "$build")'" || return
+  "$SBX" scp "$1" "$build" :Applications/
+}
+
+# What a scenario leaves behind that the next one on the same clone would see.
+reset() {  # reset <vm>
+  "$SBX" ssh "$1" 'bash -s' <<'GUEST'
+for pid in $(lsappinfo list | awk '/bundleID=/ { finder = /com\.apple\.finder"/ } /type="Foreground"/ && !finder { match($0, /pid = [0-9]+/); print substr($0, RSTART + 6, RLENGTH - 6) }'); do
+  kill -9 "$pid"
+done
+sudo launchctl asuser "$(id -u)" pbcopy < /dev/null
+rm -f ~/scenario.sh ~/scenario.md ~/rules.md ~/report.md
+GUEST
+}
+
+steps() {  # steps <file> <vm>
   case "$1" in
     *.sh)
       "$SBX" scp "$2" "$1" :scenario.sh || return
@@ -73,31 +91,54 @@ steps() {  # steps <file> <vm> <base>
   esac
 }
 
-run_one() {
-  local f="$1" stem vm res status collect
-  stem="$(basename "${f%.*}")"
-  vm="run-$stem"
-  res="$dir/$stem"
-  mkdir -p "$res"
-  if steps "$f" "$vm" "$(header "$f" base)" >"$res/run.log" 2>&1; then
-    # An agent run that exits 0 only finished; its verdict is in report.md.
-    case "$f" in *.md) status=done ;; *) status=pass ;; esac
-  else
+lane() {  # lane <vm> <base> <scenario>...
+  local vm="$1" base="$2" f stem res status collect booted=1
+  shift 2
+  mkdir -p "$dir/$vm"
+  prepare "$vm" "$base" >"$dir/$vm/prepare.log" 2>&1 || booted=0
+  for f in "$@"; do
+    stem="$(basename "${f%.*}")"
+    res="$dir/$stem"
+    mkdir -p "$res"
     status=fail
-  fi
-  collect="$(header "$f" collect)"
-  case "$f" in *.md) collect="report.md $collect" ;; esac
-  for p in $collect; do
-    "$SBX" scp "$vm" ":$p" "$res/" >>"$res/run.log" 2>&1 || echo "collect failed: $p" >>"$res/run.log"
+    if [ "$booted" = 1 ] && reset "$vm" >"$res/run.log" 2>&1 && steps "$f" "$vm" >>"$res/run.log" 2>&1; then
+      # An agent run that exits 0 only finished; its verdict is in report.md.
+      case "$f" in *.md) status=done ;; *) status=pass ;; esac
+    fi
+    [ "$booted" = 1 ] || cp "$dir/$vm/prepare.log" "$res/run.log"
+    collect="$(header "$f" collect)"
+    case "$f" in *.md) collect="report.md $collect" ;; esac
+    for p in $collect; do
+      [ "$booted" = 1 ] || break
+      "$SBX" scp "$vm" ":$p" "$res/" >>"$res/run.log" 2>&1 || echo "collect failed: $p" >>"$res/run.log"
+    done
+    echo "$status" >"$res/status"
+    echo "$status  $stem"
   done
-  "$SBX" down "$vm" >>"$res/run.log" 2>&1 || true
-  echo "$status" >"$res/status"
-  echo "$status  $stem"
+  "$SBX" down "$vm" >>"$dir/$vm/prepare.log" 2>&1 || true
 }
 
+# A lane is one clone and the scenarios it runs in turn: every scenario on a
+# base, or with --fresh, a single scenario.
+lanes=()
+if [ "$fresh" = 1 ]; then
+  for f in "$@"; do lanes+=("run-$(basename "${f%.*}")|$(header "$f" base)|$f"); done
+else
+  for f in "$@"; do
+    base="$(header "$f" base)"
+    i=0 found=0
+    for l in ${lanes[@]+"${lanes[@]}"}; do
+      if [ "$(echo "$l" | cut -d'|' -f2)" = "$base" ]; then lanes[$i]="$l|$f"; found=1; fi
+      i=$((i + 1))
+    done
+    [ "$found" = 1 ] || lanes+=("run-${base%-base}|$base|$f")
+  done
+fi
+
 pids=()
-for f in "$@"; do
-  run_one "$f" &
+for l in "${lanes[@]}"; do
+  IFS='|' read -r -a parts <<<"$l"
+  lane "${parts[@]}" &
   pids+=($!)
   if [ "${#pids[@]}" -ge "$slots" ]; then
     wait "${pids[@]}"

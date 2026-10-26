@@ -5,12 +5,12 @@ description: Build and use disposable macOS sandbox VMs on Apple silicon with Lu
 
 # macOS VM sandbox (Lume + Cua Driver)
 
-Disposable macOS guests on Apple silicon. Lume runs the VMs (Apple Virtualization.framework). Cua Driver, inside the guest, gives an agent screenshots, the accessibility tree, clicks and keys over MCP. A frozen base acts as the snapshot: every run is a copy-on-write clone that gets deleted afterwards.
+Disposable macOS guests on Apple silicon. Lume runs the VMs (Apple Virtualization.framework). Cua Driver, inside the guest, gives an agent screenshots, the accessibility tree, clicks and keys over MCP. A frozen base acts as the snapshot: every run is a copy-on-write clone that gets deleted afterwards. Booting is the slow part of a run, so scenarios on the same base share one, reset between them, rather than each booting its own. A clone's disk is shared with its base until written, so a leftover clone costs a few GB, not the 30 GB `du` reports.
 
 Paths below (`scripts/…`, `references/…`) are relative to this skill's directory; use full paths when running them. Bundled scripts:
 
 - `scripts/sbx`: host-side CLI (`ssh`, `scp`, `up`, `boot`, `freeze`, `down`, `grants`, `pane`). Run it with no arguments for usage. Commands below call it `sbx`. `up` and `boot` also start the Cua Driver daemon and mute the guest.
-- `scripts/run-scenarios`: runs scenario files in fresh clones and collects results (references/agents.md).
+- `scripts/run-scenarios`: runs scenario files, one clone per base, and collects results (references/agents.md).
 - `scripts/hidtype.swift`: full-fidelity keyboard input (references/input.md).
 
 ## Layered bases
@@ -18,7 +18,7 @@ Paths below (`scripts/…`, `references/…`) are relative to this skill's direc
 ```
 cua-base            generic: Homebrew, jq, cliclick, Claude Code, Cua Driver + its grants
 └── <app>-base      + the app under test, apps it interacts with, the app's own grants
-      └── run-*     throwaway clones, one per scenario
+      └── run-*     throwaway clones, one per base per run
 ```
 
 - Bases stay **stopped**. Never test in a base: changes leak into every later clone.

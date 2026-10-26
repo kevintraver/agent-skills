@@ -15,10 +15,10 @@ Cua Driver always runs in the guest. Pick how the scenario is driven:
 
 ## Running scenarios: `scripts/run-scenarios`
 
-One scenario per file, each in a fresh clone of the base its header names, as many at once as there are free VM slots. Run it with no arguments for usage.
+One scenario per file. Scenarios on the same base share one clone and run one after another, so a run boots once per base, and up to two bases run at once. Between scenarios the runner kills every app but Finder, empties the clipboard and removes the last scenario's files, but anything else a scenario changes (app preferences, logs, files it wrote) carries over. Truncate a log you collect when the scenario starts. `--fresh` gives each scenario its own clone, for a scenario that needs an untouched machine or to rule out leftovers when one fails. Run it with no arguments for usage.
 
 ```sh
-scripts/run-scenarios [--build path/App.app] [--rules rules.md] [--out results] scenarios/*
+scripts/run-scenarios [--build path/App.app] [--rules rules.md] [--out results] [--fresh] scenarios/*
 ```
 
 - **`*.sh` (scripted):** runs in the guest with bash; exit 0 is a pass. Send input through a proven route (input.md) and judge by the app's log and the field's contents.
