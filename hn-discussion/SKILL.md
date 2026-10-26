@@ -44,11 +44,13 @@ HN does not expose per-comment scores, so don't claim which comments were most u
 
 ## 3. Report
 
-Title (linked to `url`), author, comment count, points, posted time, and the HN discussion link, then:
+Title (linked to `url`), comment count, points, posted time, and the HN discussion link, then:
 
 - **Main takeaways**: 3-5 dominant themes and the arguments behind them
 - **Sentiment**: overall tone (positive / negative / mixed / technical) and where people agree or split
 - **Notable points**: expert insight, contrarian takes, replies from the story's author, worthwhile tangents
 - **Dynamics**: heated sub-threads or flame wars, and what readers care about most
+
+Do not include HN usernames (neither commenter handles nor the submitter's username) anywhere in the report or sentiment analysis unless the user explicitly asks for them. Attribute points by perspective or role (e.g., "the story's author", "several infrastructure engineers", "critics", "defenders") rather than by username.
 
 Deep reply chains often hold the real debate and corrections. When ranking, end with the `top` list for context.
