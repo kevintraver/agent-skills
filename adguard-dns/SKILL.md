@@ -13,7 +13,7 @@ python3 <skill-directory>/scripts/adguard.py <command> [--json] [--server ID] ..
 
 | Command | Purpose |
 |---------|---------|
-| `blocked [--minutes 15 \| --from T [--to T]] [--search X] [--device NAME]` | Blocked queries grouped by root domain, with subdomains, counts, devices and the blocking rule |
+| `blocked [--minutes 15 \| --from T [--to T]] [--search X] [--device NAME]` | Blocked queries grouped by root domain, with subdomains, counts, devices and what blocked them |
 | `log [--minutes 15 \| --from T [--to T]] [--search X] [--status S] [--device NAME] [--limit 200]` | Raw query log, newest first |
 | `rules [--search X]` | List the DNS server's user rules |
 | `allow DOMAIN... [--exact] [--dry-run]` | Add `@@\|\|domain^` allow rules |
@@ -52,12 +52,12 @@ Pass `--json` for structured output. Requires only Python 3.9+.
 ## Rule behavior
 
 - `allow` and `block` default to the **root domain** (`api-global.netflix.com` → `netflix.com`), because services spread across many subdomains and `||domain^` also matches every subdomain.
-- Check the `rule:` line before choosing. When the rule blocks one subdomain (`||ort.wellsfargo.com^`), allowing only that subdomain with `--exact` fixes the block and keeps filtering every other tracker under the root. Offer the root when several subdomains of a service are blocked, or when the rule itself targets the root.
+- Check the `blocked by:` line before choosing. When a rule blocks one subdomain (`||ort.wellsfargo.com^`), allowing only that subdomain with `--exact` fixes the block and keeps filtering every other tracker under the root. Offer the root when several subdomains of a service are blocked, or when the rule itself targets the root.
 - Use `--exact` for shared infrastructure, where the root would open up far too much: `cloudfront.net`, `amazonaws.com`, `akamaihd.net`, `googleapis.com`, `azureedge.net`, `fastly.net`, and similar. Also use it whenever the user names a specific subdomain on purpose.
 - `allow` removes a conflicting `||domain^` block rule for the same domain, and `block` removes a conflicting allow rule. The output reports this.
 - Root extraction knows only common two-part TLDs (`co.uk`, `com.au`, etc.). For other country-code TLDs, check the result and use `--exact` if it is wrong.
 - If the output warns that user rules are disabled on the server, the rules do nothing until they are re-enabled in the dashboard.
-- A blocked entry with no `rule:` line was probably blocked by a server setting (blocked services, parental control, safe browsing) rather than a filter list. Point the user to that setting in the dashboard instead of adding allow rules.
+- `blocked by:` names what blocked each domain: a `filter list` or `user rule` (allow rules fix these), or a server setting such as a `blocked service`, `parental control` or `safe browsing`. For a server setting, point the user to that setting in the dashboard instead of adding allow rules.
 
 ## Beyond the CLI
 

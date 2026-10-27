@@ -19,6 +19,16 @@ import urllib.request
 API_BASE = "https://api.adguard-dns.io"
 BLOCKED_STATUSES = ["REQUEST_BLOCKED", "RESPONSE_BLOCKED"]
 TWO_PART_TLDS = {"co.uk", "org.uk", "ac.uk", "com.au", "net.au", "co.nz", "co.za", "com.br", "co.jp", "com.mx"}
+FILTERING_TYPES = {
+    "SAFEBROWSING": "safe browsing: dangerous domain",
+    "NEWLY_REGISTERED_DOMAINS": "safe browsing: newly registered domain",
+    "TYPOSQUATTING": "safe browsing: typosquatting",
+    "HOMOGLYPH": "safe browsing: homoglyph",
+    "PARENTAL_ADULT": "parental control: adult content",
+    "PARENTAL_SCHEDULE": "parental control: screen-time schedule",
+    "PARENTAL_SAFE_SEARCH": "parental control: safe search",
+    "PARENTAL_YOUTUBE": "parental control: YouTube restricted mode",
+}
 
 
 def api(method, path, params=None, body=None):
@@ -42,6 +52,33 @@ def api(method, path, params=None, body=None):
     return json.loads(raw) if raw else None
 
 
+def list_all(path):
+    """Fetch every item from a paginated /oapi/v2 list endpoint."""
+    params = {"limit": 1000}
+    items = []
+    while True:
+        data = api("GET", path, params)
+        items.extend(data["items"])
+        next_page = (data.get("navigation") or {}).get("next")
+        if not next_page:
+            return items
+        params["cursor"] = next_page["page_cursor"]
+
+
+def filtering_reason(info):
+    """Describe what filtered a query, from its filtering_info."""
+    kind, rule = info.get("filtering_type"), info.get("filter_rule")
+    if kind == "USER_FILTER":
+        return f"user rule {rule}"
+    if kind == "FILTERS":
+        return f"filter list {info.get('filter_id')}: {rule}"
+    if kind == "PARENTAL_BLOCKED_SERVICE":
+        return f"blocked service {info.get('blocked_service_id')}"
+    if kind == "PARENTAL_FILTERING_CATEGORY":
+        return f"parental control category {info.get('filtering_category_id')}"
+    return FILTERING_TYPES.get(kind) or rule or kind
+
+
 def root_domain(domain):
     parts = domain.lower().rstrip(".").split(".")
     n = 3 if ".".join(parts[-2:]) in TWO_PART_TLDS else 2
@@ -60,7 +97,7 @@ def resolve_server(server_arg):
     server_id = explicit_server(server_arg)
     if server_id:
         return server_id
-    servers = api("GET", "/oapi/v1/dns_servers")
+    servers = list_all("/oapi/v2/dns_servers")
     default = next((s for s in servers if s.get("default")), None) or (servers[0] if len(servers) == 1 else None)
     if not default:
         names = ", ".join(f"{s['name']} ({s['id']})" for s in servers)
@@ -69,7 +106,7 @@ def resolve_server(server_arg):
 
 
 def device_names():
-    return {d["id"]: d["name"] for d in api("GET", "/oapi/v1/devices")}
+    return {d["id"]: d["name"] for d in list_all("/oapi/v2/devices")}
 
 
 def resolve_devices(values):
@@ -157,7 +194,7 @@ def cmd_servers(args):
             "user_rules": s["settings"]["user_rules_settings"]["rules_count"],
             "protection_enabled": s["settings"].get("protection_enabled"),
         }
-        for s in api("GET", "/oapi/v1/dns_servers")
+        for s in list_all("/oapi/v2/dns_servers")
     ]
     emit(args, rows, lambda: "\n".join(
         f"{r['id']}  {r['name']}{'  [default]' if r['default'] else ''}  devices={r['devices']} rules={r['user_rules']}"
@@ -166,7 +203,7 @@ def cmd_servers(args):
 
 def cmd_devices(args):
     rows = [{"id": d["id"], "name": d["name"], "type": d.get("device_type"), "dns_server_id": d.get("dns_server_id")}
-            for d in api("GET", "/oapi/v1/devices")]
+            for d in list_all("/oapi/v2/devices")]
     emit(args, rows, lambda: "\n".join(f"{r['id']}  {r['name']}  ({r['type']}, server {r['dns_server_id']})" for r in rows))
 
 
@@ -179,19 +216,19 @@ def cmd_blocked(args):
     groups = {}
     for it in items:
         root = root_domain(it["domain"])
-        g = groups.setdefault(root, {"root": root, "attempts": 0, "last_millis": 0, "subdomains": {}, "rules": set(),
+        g = groups.setdefault(root, {"root": root, "attempts": 0, "last_millis": 0, "subdomains": {}, "blocked_by": set(),
                                      "devices": set()})
         g["attempts"] += 1
         g["last_millis"] = max(g["last_millis"], it["time_millis"])
         g["subdomains"][it["domain"]] = g["subdomains"].get(it["domain"], 0) + 1
-        rule = (it.get("filtering_info") or {}).get("filter_rule")
-        if rule:
-            g["rules"].add(rule)
+        reason = filtering_reason(it.get("filtering_info") or {})
+        if reason:
+            g["blocked_by"].add(reason)
         g["devices"].add(names.get(it.get("device_id"), it.get("device_id")))
     rows = sorted(groups.values(), key=lambda g: g["last_millis"], reverse=True)
     for g in rows:
         g["last_seen"] = local_iso(g["last_millis"])
-        g["rules"] = sorted(g["rules"])
+        g["blocked_by"] = sorted(g["blocked_by"])
         g["devices"] = sorted(d for d in g["devices"] if d)
 
     def text():
@@ -206,8 +243,8 @@ def cmd_blocked(args):
             for sub, n in sorted(g["subdomains"].items(), key=lambda kv: -kv[1]):
                 if sub != g["root"]:
                     out.append(f"    {sub} ×{n}")
-            if g["rules"]:
-                out.append(f"    rule: {' | '.join(g['rules'])}")
+            if g["blocked_by"]:
+                out.append(f"    blocked by: {' | '.join(g['blocked_by'])}")
         return "\n".join(out)
 
     emit(args, rows, text)
@@ -226,7 +263,7 @@ def cmd_log(args):
             "domain": it["domain"],
             "type": it.get("dns_request_type"),
             "status": (it.get("filtering_info") or {}).get("filtering_status"),
-            "rule": (it.get("filtering_info") or {}).get("filter_rule"),
+            "reason": filtering_reason(it.get("filtering_info") or {}),
             "device": names.get(it.get("device_id"), it.get("device_id")),
         }
         for it in items
@@ -236,7 +273,7 @@ def cmd_log(args):
             return f"No matching queries {window[2]}."
         lines = [
             f"{r['time'][:19].replace('T', ' ')}  {r['status'] or '-':<17} {r['type'] or '':<6} {r['domain']}  [{r['device']}]"
-            + (f"  rule: {r['rule']}" if r["rule"] else "")
+            + (f"  by: {r['reason']}" if r["reason"] else "")
             for r in rows
         ]
         if truncated:
