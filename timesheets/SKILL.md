@@ -92,6 +92,27 @@ When the user gives hours conversationally ("8 hours Thursday for migration"), r
 - Exit 2: more than one file is open. Ask which period the hours belong to and edit that file directly.
 - Report the open period's total from its last line, plus the amount at the client's rate.
 
+### A new week starts a new file
+
+Hours dated in a later ISO week (Monday start) than anything in the open file go
+into a fresh `week-of-<that Monday>.csv` instead of extending last week's. The
+script does this itself and prints an `ASK:` line naming the previous file and
+its total. Backfilling an *earlier* day still appends to the open file, so a
+late Friday entry doesn't split the week it belongs to.
+
+When you see that `ASK:` line, ask the user whether the previous period was
+submitted, and act on the answer:
+
+- **Submitted** — archive it (see Archiving after submission), which leaves one
+  open period again.
+- **Not yet** — leave it. Both files stay in the client root and the next
+  invoice bills them together, which is usually right. Say so, and note that
+  `add_entry.sh` will exit 2 until one is archived, so later hours need the day
+  named explicitly.
+
+Don't archive on your own: the client root is the unbilled pile, and moving a
+period that was never invoiced is what makes hours go unbilled.
+
 **Descriptions** appear on the client's invoice. Write a few plain words naming the feature or area of work ("Checkout redesign", "Search performance fixes"), never tools, scripts, file names, PR numbers, or step-by-step verbs. If the user doesn't give one, derive it from the work in the conversation or recent commits at that same level of generality, and show them what you wrote.
 
 When they correct a day's total ("I only worked 6 hours on the 12th"), adjust the existing rows rather than appending a correction row. If the day has several entries, trimming the largest is usually right — but say which row you changed and what the new grand total is, since a correction that silently preserves the total may not be what they meant.

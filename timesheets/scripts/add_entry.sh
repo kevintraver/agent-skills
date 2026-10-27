@@ -22,6 +22,14 @@ if [[ "$(date -j -f %F "$day" +%F 2>/dev/null || date -d "$day" +%F 2>/dev/null)
 	exit 1
 fi
 
+# Monday of the ISO week a date falls in (BSD date, then GNU).
+week_start() {
+	local d=$1 dow
+	dow=$(date -j -f %F "$d" +%u 2>/dev/null || date -d "$d" +%u)
+	date -j -v-$((dow - 1))d -f %F "$d" +%F 2>/dev/null ||
+		date -d "$d -$((dow - 1)) days" +%F
+}
+
 shopt -s nullglob
 open=("$dir"/week-of-*.csv)
 
@@ -37,8 +45,20 @@ if ((${#open[@]} == 0)); then
 	echo "Started new period: ${file##*/}"
 else
 	file="${open[0]}"
-	# A hand-edited file may have lost its final newline; the row must start on its own line.
-	[[ -n "$(tail -c1 "$file")" ]] && echo >>"$file"
+	# The latest day already logged, so a new week starts its own file rather than
+	# extending last week's. Backfilling an earlier day still appends to this one.
+	last=$(awk -F, 'NR > 1 && $1 ~ /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/ { if ($1 > m) m = $1 } END { print m }' "$file")
+	if [[ -n "$last" && "$(week_start "$day")" > "$(week_start "$last")" ]]; then
+		prev="$file"
+		prev_total=$(awk -F, 'NR > 1 && toupper($1) != "TOTAL" { sum += $2 } END { print sum + 0 }' "$prev")
+		file="$dir/week-of-$(week_start "$day").csv"
+		echo "Date,Hours,Description" >"$file"
+		echo "Started new week: ${file##*/}"
+		echo "ASK: was ${prev##*/} ($prev_total h) submitted? If yes, archive it so only one period stays open."
+	else
+		# A hand-edited file may have lost its final newline; the row must start on its own line.
+		[[ -n "$(tail -c1 "$file")" ]] && echo >>"$file"
+	fi
 fi
 
 [[ "$hours" == *.* ]] || hours="$hours.0"
