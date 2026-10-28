@@ -20,7 +20,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 - **Tightly cropped.** No messages cut off at the top or bottom edge, and no empty space around the conversation. This needs no confirmation; mention it in the reply.
 - **Clutter gone, only when asked:** "Read" receipts, timestamps, the typing indicator.
 - **Private details unreadable, only when asked:** names, phone numbers, avatars, or anything else the user names, covered with solid blocks unless the user asks for blur. Blurred text must not be readable. Whether or not redaction was requested, point out anything else that looks like personal information (names, phone numbers, email or street addresses, avatars, account or order numbers) and offer to redact it.
-- **On a card.** Rounded corners, even padding, on a slightly darker background that matches the chat's theme (dark or light).
+- **On a card.** Rounded corners, even padding, on a background that matches the chat's theme (dark or light) and sets the card apart: slightly darker, or slightly lighter when the chat is already black.
 - **Sized to fit** a target size if one was given. Never enlarged past the source.
 
 ## From text
