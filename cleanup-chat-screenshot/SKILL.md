@@ -26,7 +26,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 ## From text
 
 - **Word for word**, with its structure (paragraphs, bullets, bold, code). No title or caption unless asked.
-- **Easy to scan.** When paragraphs each open with a short label and a colon, show them as a bulleted list with each label in bold.
+- **Easy to scan.** When two or more paragraphs open with a short label and a colon, show those as a bulleted list with each label in bold, and leave the other paragraphs as they are.
 - **Reads like clean typeset text:** a plain sans-serif, a comfortable line length, light theme unless asked otherwise, sharp at high resolution, on the same card as above.
 - The personal-information check, sizing, and delivery apply here too.
 
