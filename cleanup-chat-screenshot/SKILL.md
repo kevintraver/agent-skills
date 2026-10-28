@@ -16,7 +16,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 
 ## What the result should look like
 
-- **Removed messages leave no trace.** The remaining messages sit with natural, even spacing, as if the removed ones were never there. If the request clearly identifies the messages ("the last two"), just do it. If it's ambiguous which ones are meant, show the user the messages numbered and ask.
+- **Removed messages leave no trace.** The remaining messages sit with natural, even spacing, as if the removed ones were never there. When a removal leaves a trace that only repainting could hide, such as a bubble losing the tail that marked the end of its group, leave it and tell the user. If the request clearly identifies the messages ("the last two"), just do it. If it's ambiguous which ones are meant, show the user the messages numbered and ask.
 - **Tightly cropped.** No messages cut off at the top or bottom edge, and no empty space around the conversation. This needs no confirmation; mention it in the reply.
 - **Clutter gone, only when asked:** "Read" receipts, timestamps, the typing indicator.
 - **Private details unreadable, only when asked:** names, phone numbers, avatars, or anything else the user names, covered with solid blocks unless the user asks for blur. Blurred text must not be readable. Whether or not redaction was requested, point out anything else that looks like personal information (names, phone numbers, email or street addresses, avatars, account or order numbers) and offer to redact it.
@@ -32,7 +32,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 
 ## Delivery
 
-Before handing it over, look at the result: no message clipped, gaps between messages even, nothing removed that shouldn't be, and for text, every word matches the source. Save it as a new file where the user will find it, never overwriting the original or leaving it only in a temporary folder, and give the full path. If the image can be put on the clipboard, copy it there too and say so.
+Before handing it over, look at the result: no message clipped, gaps between messages even, nothing removed that shouldn't be, no sign of an edit left unmentioned, and for text, every word matches the source. Save it as a new file where the user will find it, never overwriting the original or leaving it only in a temporary folder, and give the full path. If the image can be put on the clipboard, copy it there too and say so.
 
 ## Rules
 
