@@ -26,6 +26,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 ## From text
 
 - **Word for word**, with its structure (paragraphs, bullets, bold, code). No title or caption unless asked.
+- **Easy to scan.** When paragraphs each open with a short label and a colon, show them as a bulleted list with each label in bold. Adding formatting like this is fine; changing the words is not.
 - **Reads like clean typeset text:** a plain sans-serif, a comfortable line length, light theme unless asked otherwise, sharp at high resolution, on the same card as above.
 - The personal-information check, sizing, and delivery apply here too.
 
@@ -35,6 +36,6 @@ Before handing it over, look at the result: no bubble clipped, gaps between bubb
 
 ## Rules
 
-- Never repaint, invent, or reword message text or bubbles. Only cut, crop, cover, and blur. From text, render it exactly as written.
+- Never repaint, invent, or reword message text or bubbles. Only cut, crop, cover, and blur. From text, keep the words exactly as written; only the formatting may change.
 - Ask before removing anything the user didn't mention, except the edge crop.
 - When anything is ambiguous, such as which message the user means, or how to handle a problem in the source like a bubble already cut off at the side, ask the user before acting instead of guessing.
