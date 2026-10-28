@@ -16,7 +16,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 
 ## What the result should look like
 
-- **Removed messages leave no trace.** The remaining messages sit with natural, even spacing, as if the removed ones were never there. When a removal leaves a trace that only repainting could hide, such as a bubble losing the tail that marked the end of its group, leave it and tell the user. If the request clearly identifies the messages, just do it. If it's ambiguous which ones are meant, such as "the last two" when the bottom message is cut off or followed by a typing indicator, show the user the messages numbered and ask.
+- **Removed messages leave no trace.** The remaining messages sit with natural, even spacing, as if the removed ones were never there. When a removal leaves a trace that only repainting could hide, such as a bubble losing the tail that marked the end of its group, leave it and tell the user. When messages are left without their sender's name and picture, because the removed message carried them or they were cut off above, offer to move the name and picture up so the messages read as one group again. Mention that the time shown beside the name belongs to the message it originally sat on. If the request clearly identifies the messages, just do it. If it's ambiguous which ones are meant, such as "the last two" when the bottom message is cut off or followed by a typing indicator, show the user the messages numbered and ask.
 - **Tightly cropped.** No messages cut off at the top or bottom edge, no app interface around the conversation (status bar, contact header, message box, keyboard), and no empty space. This needs no confirmation; mention it in the reply, including any name or avatar the crop removed.
 - **Clutter gone, only when asked:** "Read" receipts, timestamps, the typing indicator.
 - **Private details unreadable, only when asked:** names, phone numbers, avatars, or anything else the user names, covered with solid blocks unless the user asks for blur. Blurred text must not be readable. Whether or not redaction was requested, point out anything else that looks like personal information (names, phone numbers, email or street addresses, avatars, account or order numbers) and offer to redact it.
@@ -36,6 +36,6 @@ Before handing it over, look at the result: no message clipped, gaps between mes
 
 ## Rules
 
-- Never repaint, invent, or reword message text or bubbles. Only cut, crop, cover, and blur. From text, keep the words exactly as written; only the formatting may change.
+- Never repaint, invent, or reword message text or bubbles. Only cut, crop, cover, and blur, plus moving a sender's name and picture once the user agrees. From text, keep the words exactly as written; only the formatting may change.
 - Ask before removing anything the user didn't mention, except the crop.
 - When anything is ambiguous, such as which message the user means, or how to handle a problem in the source like a message already cut off at the side, ask the user before acting instead of guessing.
