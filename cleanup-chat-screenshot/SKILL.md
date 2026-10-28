@@ -24,6 +24,7 @@ With no instructions ("clean this up"), only crop, cover contact and account det
 - **Contact and account details always covered:** email addresses, phone numbers, street addresses, and account or order numbers, without asking, unless the user says to keep them. List each one covered in the reply.
 - **Other private details covered only when asked:** names, avatars, or anything else the user names. Whether or not covering was requested, point out anything else that looks like personal information (names, avatars, places) and offer to cover it.
 - **On a card.** Rounded corners, even padding, on a background that matches the chat's theme (dark or light) and sets the card apart: slightly darker, or slightly lighter when the chat is already black.
+- **Compact on request when very wide.** If the screenshot came from a very wide window, with the two sides' messages far apart, offer a more compact version. If the user agrees, slide each side's messages sideways so the width matches the longest message, keeping date lines centered and vertical spacing unchanged.
 - **Sized to fit** a target size if one was given. Never enlarged past the source.
 
 ## From text
@@ -39,6 +40,6 @@ Before handing it over, look at the result: no message clipped, gaps between mes
 
 ## Rules
 
-- Never repaint, invent, or reword message text or bubbles. Only cut, crop, and cover (pixelate, or solid blocks on request), plus moving a sender's name and picture or shading a highlighted background to match, once the user agrees. From text, keep the words exactly as written; only the formatting may change.
+- Never repaint, invent, or reword message text or bubbles. Only cut, crop, and cover (pixelate, or solid blocks on request), plus moving a sender's name and picture, shading a highlighted background to match, or sliding messages sideways into a compact layout, once the user agrees. From text, keep the words exactly as written; only the formatting may change.
 - Ask before removing anything the user didn't mention, except the crop and covering contact and account details.
 - When anything is ambiguous, such as which message the user means, or how to handle a problem in the source like a message already cut off at the side, ask the user before acting instead of guessing.
