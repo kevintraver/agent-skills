@@ -17,7 +17,7 @@ With no instructions ("clean this up"), only crop and put it on the card. Sugges
 ## What the result should look like
 
 - **Removed messages leave no trace.** The remaining messages sit with natural, even spacing, as if the removed ones were never there. When a removal leaves a trace that only repainting could hide, such as a bubble losing the tail that marked the end of its group, leave it and tell the user. If the request clearly identifies the messages ("the last two"), just do it. If it's ambiguous which ones are meant, show the user the messages numbered and ask.
-- **Tightly cropped.** No messages cut off at the top or bottom edge, and no empty space around the conversation. This needs no confirmation; mention it in the reply.
+- **Tightly cropped.** No messages cut off at the top or bottom edge, no app interface around the conversation (status bar, contact header, message box, keyboard), and no empty space. This needs no confirmation; mention it in the reply, including any name or avatar the crop removed.
 - **Clutter gone, only when asked:** "Read" receipts, timestamps, the typing indicator.
 - **Private details unreadable, only when asked:** names, phone numbers, avatars, or anything else the user names, covered with solid blocks unless the user asks for blur. Blurred text must not be readable. Whether or not redaction was requested, point out anything else that looks like personal information (names, phone numbers, email or street addresses, avatars, account or order numbers) and offer to redact it.
 - **On a card.** Rounded corners, even padding, on a background that matches the chat's theme (dark or light) and sets the card apart: slightly darker, or slightly lighter when the chat is already black.
@@ -37,5 +37,5 @@ Before handing it over, look at the result: no message clipped, gaps between mes
 ## Rules
 
 - Never repaint, invent, or reword message text or bubbles. Only cut, crop, cover, and blur. From text, keep the words exactly as written; only the formatting may change.
-- Ask before removing anything the user didn't mention, except the edge crop.
+- Ask before removing anything the user didn't mention, except the crop.
 - When anything is ambiguous, such as which message the user means, or how to handle a problem in the source like a message already cut off at the side, ask the user before acting instead of guessing.
