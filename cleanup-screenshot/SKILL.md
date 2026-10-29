@@ -17,7 +17,7 @@ With no instructions, only crop, cover contact and account details, and put it o
 
 Work on the original when the job is cropping, covering, or removing whole messages. Recreate the conversation when a change would rearrange what's inside it: removing part of a message, adding or regrouping under a sender's name, the compact layout, or fixing a cut-off bubble. A recreation matches the app's look (theme, bubble colors and shape, a similar font, names and times as shown), keeps every word exactly as written, and is called a recreation in the reply. Other screenshots are only edited; if a request would add to one, say so instead.
 
-Decide from the request's wording. With no instructions, or for text with no screenshot, there's nothing to decide. When the wording doesn't settle it, check with Vercel AI Gateway decision models, giving each the rule above and the two options, edit or recreate:
+Decide from the request's wording. With no instructions, or for text with no screenshot, there's nothing to decide. When the wording doesn't settle it, check with Vercel AI Gateway decision models (load the `ai-cli` skill for how), giving each the rule above and the two options, edit or recreate:
 
 1. A text-only model, given a one-line description of the screenshot (the app, and whether it's a chat) and the request.
 2. If that answer isn't confident (below about 0.7), a model that accepts images, given the screenshot and the request.
