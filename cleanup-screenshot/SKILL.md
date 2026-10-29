@@ -1,11 +1,11 @@
 ---
 name: cleanup-screenshot
-description: Turn a raw chat screenshot (iMessage, Slack, WhatsApp, Discord, Signal, Messenger, and similar), or text from the conversation such as your last reply, into a clean, shareable image on a rounded card, optionally removing messages, clutter, or private details. Use when asked to clean up, tidy, crop, or make shareable a chat screenshot, remove messages from one, or redact or pixelate names, phone numbers, or avatars in one. Also use when asked to turn a reply, message, or pasted text into a screenshot or image for sharing ("tidy that up for sharing as a screenshot", "make that an image I can share").
+description: Turn a raw screenshot into a clean, shareable image on a rounded card. Works mainly on chat screenshots (iMessage, Slack, WhatsApp, Discord, Signal, Messenger, and similar), but also on other screenshots such as app windows, popovers, notifications, settings panels, or receipts, and on text from the conversation such as your last reply. Optionally removes messages or parts, clutter, or private details. Use when asked to clean up, tidy, crop, or make shareable a chat screenshot or any other screenshot, remove messages or parts from one, or redact or pixelate names, phone numbers, or avatars in one. Also use when asked to turn a reply, message, or pasted text into a screenshot or image for sharing ("tidy that up for sharing as a screenshot", "make that an image I can share").
 ---
 
-# Clean up a chat screenshot
+# Clean up a screenshot
 
-Turn a chat screenshot into a clean image that looks like an untouched capture of the conversation, presented on a card. Text with no screenshot behind it, such as your last reply, gets rendered onto the same kind of card.
+Turn a screenshot, usually a chat, into a clean image that looks like an untouched capture, presented on a card. Text with no screenshot behind it, such as your last reply, gets rendered onto the same kind of card.
 
 ## Input
 
@@ -28,6 +28,14 @@ With no instructions ("clean this up"), only crop, cover contact and account det
 - **Compact on request when very wide.** If the screenshot came from a very wide window, with the two sides' messages far apart, offer a more compact version. If the user agrees, slide each side's messages sideways so the width matches the longest message, keeping date lines centered and vertical spacing unchanged.
 - **Sized to fit** a target size if one was given. Never enlarged past the source.
 
+## Other screenshots
+
+Screenshots that aren't conversations, such as an app window, a popover, a notification, a settings panel, or a receipt, get the same treatment, with the subject in place of the conversation:
+
+- **Cropped to the subject.** Keep the complete element the screenshot is about, and drop window edges, stray bits of other apps, and neighboring elements that are cut off. If it isn't clear which part is the subject, ask.
+- **Parts removed on request**, the same way as messages: the gap closes naturally, an unclear request gets the parts numbered and a question, and any trace left is mentioned.
+- Capture leftovers, private details, the card, sizing, delivery, and the rules apply as above. Regrouping under a sender, the compact layout, and chat clutter such as receipts and typing indicators are chat-only.
+
 ## From text
 
 - **Word for word**, with its structure (paragraphs, bullets, bold, code). No title or caption unless asked.
@@ -41,7 +49,7 @@ Before handing it over, look at the result: no message clipped, gaps between mes
 
 ## Rules
 
-- Never repaint, invent, or reword message text or bubbles. Only cut, crop, and cover (pixelate, or solid blocks on request). From text, keep the words exactly as written; only the formatting may change.
+- Never repaint, invent, or reword text or bubbles. Only cut, crop, and cover (pixelate, or solid blocks on request). From text, keep the words exactly as written; only the formatting may change.
 - Only once the user agrees: move a sender's name and picture up, shade a highlighted background to match, or slide messages sideways into a compact layout.
 - Ask before removing anything the user didn't mention, except the crop and covering contact and account details.
 - When anything is ambiguous, such as which message the user means, or how to handle a problem in the source like a message already cut off at the side, ask the user before acting instead of guessing.
