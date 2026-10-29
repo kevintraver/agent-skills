@@ -21,7 +21,7 @@ With no instructions, only crop, cover contact and account details, and put it o
 - **Capture leftovers** (hover highlight, selected text, cursor, focus outline): point them out and ask. If the user agrees, fix them only where no text gets redrawn, such as shading a highlighted background to match, and say what had to stay.
 - **Clutter, only when asked:** read receipts, timestamps, the typing indicator, unread markers (a "New" line), and app notices (huddle summaries, "joined the channel"). Offer to remove markers and notices when present.
 - **Private details:** always cover email addresses, phone numbers, street addresses, and account or order numbers unless told to keep them, and list each one. Cover names, avatars, or anything else only when asked, but point out other personal information (names, avatars, places) and offer. Pixelate coarsely enough that text can't be read or reconstructed (solid blocks on request): the whole bubble, tail included, when the whole message is private; otherwise just the private part.
-- **Card:** rounded corners and even padding, on a background matching the theme, slightly darker, or slightly lighter when the chat is black.
+- **Card:** rounded corners and even padding, on a transparent background. If the user asks for a background, match the theme, slightly darker, or slightly lighter when the chat is black.
 - **Compact layout, offered** for very wide screenshots: slide each side's messages sideways to the longest message's width, keeping date lines centered and vertical spacing unchanged.
 - **Size:** fit any target size; never enlarge past the source.
 
@@ -35,7 +35,7 @@ Word for word, keeping its structure (paragraphs, bullets, bold, code), with no 
 
 ## Delivery
 
-Check the result: nothing clipped, even gaps, nothing wrongly removed, no unmentioned edit, covered text unreadable, and text matching word for word. Save it as a new file where the user will find it, never over the original or only in a temporary folder, give the full path, and copy it to the clipboard if possible, saying so.
+Check the result: nothing clipped, even gaps, nothing wrongly removed, no unmentioned edit, covered text unreadable, and text matching word for word. Save it as a new PNG, so transparency survives, where the user will find it, never over the original or only in a temporary folder, give the full path, and copy it to the clipboard if possible, saying so.
 
 ## Rules
 
