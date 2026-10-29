@@ -1,55 +1,45 @@
 ---
 name: cleanup-screenshot
-description: Turn a raw screenshot into a clean, shareable image on a rounded card. Works mainly on chat screenshots (iMessage, Slack, WhatsApp, Discord, Signal, Messenger, and similar), but also on other screenshots such as app windows, popovers, notifications, settings panels, or receipts, and on text from the conversation such as your last reply. Optionally removes messages or parts, clutter, or private details. Use when asked to clean up, tidy, crop, or make shareable a chat screenshot or any other screenshot, remove messages or parts from one, or redact or pixelate names, phone numbers, or avatars in one. Also use when asked to turn a reply, message, or pasted text into a screenshot or image for sharing ("tidy that up for sharing as a screenshot", "make that an image I can share").
+description: Turn a screenshot (usually a chat) into a clean, shareable image on a card, with cropping, removals, and private details pixelated. Use when asked to clean up, tidy, crop, redact, or make shareable a screenshot or text.
 ---
 
 # Clean up a screenshot
 
-Turn a screenshot, usually a chat, into a clean image that looks like an untouched capture, presented on a card. Text with no screenshot behind it, such as your last reply, gets rendered onto the same kind of card.
+Make a screenshot, usually a chat, look like an untouched capture, presented on a card. Text with no screenshot behind it, such as your last reply, goes on the same card.
 
 ## Input
 
-- The screenshot, or the text to share. "That" or "this" with no image in sight usually means your last reply; if it could mean more than one thing, ask.
-- Optional instructions: messages to remove, clutter to drop, details to cover and how (pixelated or solid block), a target size.
+The screenshot or text, plus optional instructions: what to remove, what to cover and how (pixelated or solid block), a target size. "That" with no image in sight usually means your last reply; ask if it could mean more than one thing.
 
-With no instructions ("clean this up"), only crop, cover contact and account details, and put it on the card. Suggest removals or redactions that seem useful, but don't make them.
+With no instructions, only crop, cover contact and account details, and put it on the card. Suggest other changes; don't make them.
 
-## What the result should look like
+## Chat result
 
-- **Removed messages leave no trace.** The remaining messages sit with natural, even spacing, as if the removed ones were never there. If the request clearly identifies the messages, just do it. If it's ambiguous which ones are meant, such as "the last two" when the bottom message is cut off or followed by a typing indicator, show the user the messages numbered and ask. When a removal leaves a trace that only repainting could hide, such as a bubble losing the tail that marked the end of its group, leave it and tell the user.
-- **Regrouped under the sender, on request.** When messages are left without their sender's name and picture, because the removed message carried them or they were cut off above, offer to move the name and picture up so the messages read as one group again. Mention that the time shown beside the name belongs to the message it originally sat on.
-- **Tightly cropped.** No messages cut off at the top or bottom edge, no app interface around the conversation (status bar, contact header, message box, keyboard), and no empty space. A message clipped so slightly that it still looks whole stays. This needs no confirmation; mention it in the reply, including any name or avatar the crop removed and any barely clipped message kept.
-- **Capture leftovers fixed, only when the user agrees:** traces of where the mouse or keyboard was when the screenshot was taken, such as a message highlighted on hover, selected text, a cursor, or a focus outline. Point them out and ask. If the user agrees, fix them only where that doesn't mean redrawing text, such as shading a highlighted background to match the rest, and say what had to stay.
-- **Clutter gone, only when asked:** "Read" receipts, timestamps, the typing indicator, unread markers such as a "New" line, and app notices such as huddle summaries or "joined the channel". Offer to remove the markers and notices when they're there.
-- **Private details pixelated.** Cover them with pixelation coarse enough that the text can't be read or reconstructed, or with solid blocks if the user asks. When a whole message is private, pixelate the entire bubble, edges and tail included. When only part is, pixelate just that part so the rest still reads.
-- **Contact and account details always covered:** email addresses, phone numbers, street addresses, and account or order numbers, without asking, unless the user says to keep them. List each one covered in the reply.
-- **Other private details covered only when asked:** names, avatars, or anything else the user names. Whether or not covering was requested, point out anything else that looks like personal information (names, avatars, places) and offer to cover it.
-- **On a card.** Rounded corners, even padding, on a background that matches the chat's theme (dark or light) and sets the card apart: slightly darker, or slightly lighter when the chat is already black.
-- **Compact on request when very wide.** If the screenshot came from a very wide window, with the two sides' messages far apart, offer a more compact version. If the user agrees, slide each side's messages sideways so the width matches the longest message, keeping date lines centered and vertical spacing unchanged.
-- **Sized to fit** a target size if one was given. Never enlarged past the source.
+- **Cropped tight**, without asking: drop cut-off messages, app interface (status bar, contact header, message box, keyboard), and empty space. Keep a message clipped so little it still looks whole. Mention what the crop removed, including any name or avatar, and any barely clipped message kept.
+- **Removals leave no trace**, with natural, even spacing. Do clear requests; for ambiguous ones (such as "the last two" when the bottom message is cut off or followed by a typing indicator), number the messages and ask. If a removal leaves a trace only repainting could hide, such as a bubble losing its group's tail, leave it and say so.
+- **Regrouping, offered:** when messages lose their sender's name and picture (removed, or cut off above), offer to move them up, noting that the time beside the name belongs to the message it first sat on.
+- **Capture leftovers** (hover highlight, selected text, cursor, focus outline): point them out and ask. If the user agrees, fix them only where no text gets redrawn, such as shading a highlighted background to match, and say what had to stay.
+- **Clutter, only when asked:** read receipts, timestamps, the typing indicator, unread markers (a "New" line), and app notices (huddle summaries, "joined the channel"). Offer to remove markers and notices when present.
+- **Private details:** always cover email addresses, phone numbers, street addresses, and account or order numbers unless told to keep them, and list each one. Cover names, avatars, or anything else only when asked, but point out other personal information (names, avatars, places) and offer. Pixelate coarsely enough that text can't be read or reconstructed (solid blocks on request): the whole bubble, tail included, when the whole message is private; otherwise just the private part.
+- **Card:** rounded corners and even padding, on a background matching the theme, slightly darker, or slightly lighter when the chat is black.
+- **Compact layout, offered** for very wide screenshots: slide each side's messages sideways to the longest message's width, keeping date lines centered and vertical spacing unchanged.
+- **Size:** fit any target size; never enlarge past the source.
 
 ## Other screenshots
 
-Screenshots that aren't conversations, such as an app window, a popover, a notification, a settings panel, or a receipt, get the same treatment, with the subject in place of the conversation:
-
-- **Cropped to the subject.** Keep the complete element the screenshot is about, and drop window edges, stray bits of other apps, and neighboring elements that are cut off. If it isn't clear which part is the subject, ask.
-- **Parts removed on request**, the same way as messages: the gap closes naturally, an unclear request gets the parts numbered and a question, and any trace left is mentioned.
-- Capture leftovers, private details, the card, sizing, delivery, and the rules apply as above. Regrouping under a sender, the compact layout, and chat clutter such as receipts and typing indicators are chat-only.
+App windows, popovers, notifications, settings panels, and receipts get the same treatment, with the subject in place of the conversation. Crop to the complete subject, dropping window edges, stray bits of other apps, and cut-off neighbors; ask if the subject is unclear. Remove parts on request the way messages are removed. Regrouping, the compact layout, and chat clutter don't apply.
 
 ## From text
 
-- **Word for word**, with its structure (paragraphs, bullets, bold, code). No title or caption unless asked.
-- **Easy to scan.** When two or more paragraphs open with a short label and a colon, show those as a bulleted list with each label in bold, and leave the other paragraphs as they are.
-- **Reads like clean typeset text:** a plain sans-serif, a comfortable line length, light theme unless asked otherwise, sharp at high resolution, on the same card as above.
-- The personal-information check, sizing, and delivery apply here too.
+Word for word, keeping its structure (paragraphs, bullets, bold, code), with no title or caption unless asked. When two or more paragraphs start with a short label and a colon, make those a bulleted list with bold labels and leave the rest. Plain sans-serif, comfortable line length, light theme unless asked, sharp at high resolution, on the same card. Private details, size, and delivery apply.
 
 ## Delivery
 
-Before handing it over, look at the result: no message clipped, gaps between messages even, nothing removed that shouldn't be, no sign of an edit left unmentioned, covered text can't be read, and for text, every word matches the source. Save it as a new file where the user will find it, never overwriting the original or leaving it only in a temporary folder, and give the full path. If the image can be put on the clipboard, copy it there too and say so.
+Check the result: nothing clipped, even gaps, nothing wrongly removed, no unmentioned edit, covered text unreadable, and text matching word for word. Save it as a new file where the user will find it, never over the original or only in a temporary folder, give the full path, and copy it to the clipboard if possible, saying so.
 
 ## Rules
 
-- Never repaint, invent, or reword text or bubbles. Only cut, crop, and cover (pixelate, or solid blocks on request). From text, keep the words exactly as written; only the formatting may change.
-- Only once the user agrees: move a sender's name and picture up, shade a highlighted background to match, or slide messages sideways into a compact layout.
-- Ask before removing anything the user didn't mention, except the crop and covering contact and account details.
-- When anything is ambiguous, such as which message the user means, or how to handle a problem in the source like a message already cut off at the side, ask the user before acting instead of guessing.
+- Never repaint, invent, or reword text or bubbles; only cut, crop, and cover. From text, only the formatting may change.
+- Only with the user's OK: move a sender's name and picture, shade a highlight to match, or slide messages into a compact layout.
+- Ask before removing anything the user didn't mention, except the crop and covering contact or account details.
+- When anything is ambiguous, such as which message is meant or a problem in the source like a message cut off at the side, ask instead of guessing.
