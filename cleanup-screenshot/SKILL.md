@@ -1,5 +1,5 @@
 ---
-name: cleanup-chat-screenshot
+name: cleanup-screenshot
 description: Turn a raw chat screenshot (iMessage, Slack, WhatsApp, Discord, Signal, Messenger, and similar), or text from the conversation such as your last reply, into a clean, shareable image on a rounded card, optionally removing messages, clutter, or private details. Use when asked to clean up, tidy, crop, or make shareable a chat screenshot, remove messages from one, or redact or pixelate names, phone numbers, or avatars in one. Also use when asked to turn a reply, message, or pasted text into a screenshot or image for sharing ("tidy that up for sharing as a screenshot", "make that an image I can share").
 ---
 
