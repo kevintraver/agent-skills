@@ -5,13 +5,11 @@ description: Turn a screenshot (usually a chat) into a clean, shareable image on
 
 # Clean up a screenshot
 
-The result should look like an untouched capture, on a card. With no instructions, only crop, cover the private details listed below, and card it; suggest other changes without making them.
+The result should look like a polished screen capture, on a card. With no instructions, only crop, cover the private details listed below, and card it; suggest other changes without making them.
 
 ## Edit or recreate
 
 Edit the original for crops, covers, and whole-message removals; anything more is a recreation. Recreate the conversation when a change rearranges it: removing part of a message, adding or regrouping under a sender's name, the compact layout, or fixing a cut-off bubble. A recreation matches the app's look (theme, bubble colors and shape, a similar font, names and times as shown) and is called a recreation in the reply.
-
-Only a chat with instructions needs deciding. Go by the wording; if it doesn't settle it, have Vercel AI Gateway decision models (load the `ai-cli` skill for how) pick edit or recreate under the rule above: a text-only model given a one-line description of the screenshot and the request, then, below about 0.7 confidence, a model that sees images given the screenshot and the request, then the user. Skip any model that errors.
 
 ## Chat result
 
