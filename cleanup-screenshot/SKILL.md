@@ -1,6 +1,6 @@
 ---
 name: cleanup-screenshot
-description: Turn a screenshot (usually a chat) into a clean, shareable image on a card, with cropping, removals, and private details pixelated. Use when asked to clean up, tidy, crop, redact, or make shareable a screenshot or text.
+description: Turn a screenshot (usually a chat) into a clean, shareable image on a card, with cropping, clutter and other removals, and private details pixelated. Use when asked to clean up, tidy, crop, redact, or make shareable a screenshot or text.
 ---
 
 # Clean up a screenshot
@@ -9,7 +9,7 @@ The result should look like a polished screen capture, on a card. With no instru
 
 ## Edit or recreate
 
-Edit the original for crops, covers, clutter, and whole-message removals; anything more is a recreation. Recreate the conversation when a change rearranges it: removing part of a message, adding or regrouping under a sender's name, the compact layout, or fixing a cut-off bubble. A recreation matches the app's look (theme, bubble colors and shape, a similar font, names and times as shown) and is called a recreation in the reply.
+Edit the original for crops, covers, clutter, and whole-message removals; anything more is a recreation. Recreate the conversation when a change rearranges it: removing part of a message, adding or regrouping under a sender's name, the compact layout, or fixing a cut-off bubble. A recreation matches the app's look (theme, bubble colors and shape, a similar font, names as shown) and is called a recreation in the reply.
 
 ## Chat result
 
@@ -24,7 +24,7 @@ Edit the original for crops, covers, clutter, and whole-message removals; anythi
 
 ## Other screenshots
 
-Same treatment, with the subject in place of the conversation: crop to the complete subject, dropping window edges, stray bits of other apps, and cut-off neighbors, and remove clutter around it. Only edit them; if a request would add to one, say so. Regrouping and the compact layout don't apply.
+Same treatment, with the subject in place of the conversation: crop to the complete subject, dropping window edges, stray bits of other apps, and cut-off neighbors, and remove clutter around it. Only edit them: keep clutter that can't be edited out cleanly and say so, and if a request would add to one, say so. Regrouping and the compact layout don't apply.
 
 ## From text
 
