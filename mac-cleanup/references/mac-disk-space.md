@@ -11,6 +11,7 @@ of caches, local AI models, container images, and dependency folders.
 - [Usual suspects](#usual-suspects)
 - [Find the active model before deleting others](#find-the-active-model-before-deleting-others)
 - [App caches](#app-caches)
+- [Never delete](#never-delete)
 - [Homebrew taps](#homebrew-taps)
 - [Login items disabled after a cleanup](#login-items-disabled-after-a-cleanup)
 - [Report](#report)
@@ -75,10 +76,12 @@ Re-measure a suspicious folder alone with `du -sh`.
 | Playwright browsers (`~/Library/Caches/ms-playwright`) | `ls ~/Library/Caches/ms-playwright` | Delete older revisions of the same browser (e.g. `webkit-2227` beside `webkit-2336`) | Upgrades leave old revisions behind. Projects pinned to an old Playwright re-download theirs on `npx playwright install`. |
 | mise runtimes (`~/.local/share/mise`) | `mise ls --prunable`, `mise prune --tools --dry-run` | `mise prune --tools`, or `mise uninstall node@X` | Each Node version holds its own global npm packages. Check `.nvmrc`/`.node-version` pins. `prune` keeps versions a running process uses; without `--tools` it also forgets tracked configs. |
 | Global npm packages | `du -sh "$(npm root -g)"/* \| sort -rh` | `npm uninstall -g <pkg>` | Duplicates may exist via bun or Homebrew (`which -a`). |
-| Homebrew downloads and orphans (`brew --cache`) | `du -sh "$(brew --cache)"`, `brew cleanup --prune=all -n`, `brew autoremove -n` | `brew cleanup --prune=all`; `brew autoremove` | Plain `brew cleanup` keeps 120 days of downloads. `autoremove` uninstalls dependencies nothing needs; show its list first. |
+| Homebrew downloads and orphans (`brew --cache`) | `du -sh "$(brew --cache)"`, `brew cleanup --prune=all -n`, `brew autoremove -n` | `brew cleanup --prune=all`; `brew autoremove` | Plain `brew cleanup` keeps 120 days of downloads. `autoremove` uninstalls dependencies nothing needs; show its list first. Never `rm` the downloads by hand: a running `brew fetch` holds `*.incomplete` files and locks there. |
 | Duplicate Rust | `which cargo`, `rustup toolchain list` | `rustup toolchain uninstall stable` | Never `rustup self uninstall`: it deletes `~/.cargo` and its `cargo install` tools. |
 | Xcode (`~/Library/Developer/Xcode`) | `du -xhd1` | Delete old `iOS DeviceSupport/<version>` | Counts as Developer. Rebuilt when a device connects. |
 | Xcode simulators (`~/Library/Developer/CoreSimulator`) | `xcrun simctl list devices unavailable` | `xcrun simctl delete unavailable` | Only removes simulators whose runtime is gone (left from older Xcode versions). Counts as Developer. |
+| Simulator device data (`~/Library/Developer/CoreSimulator/Devices/<udid>/data`) | `xcrun simctl list devices` (only `Shutdown` devices) | In each shut-down device, delete `private/var/MobileAsset/AssetsV2`, `Library/Caches`, `var/db/diagnostics`, `var/db/uuidtext` | Quit Simulator first; skip `Booted` devices. Keeps installed apps, unlike `simctl erase`. |
+| Clang module cache (`$(getconf DARWIN_USER_CACHE_DIR)clang/ModuleCache`) | `du -sh` | Delete its contents | Only while `pgrep -x clang`, `clangd`, `swiftc`, and `xcodebuild` find nothing. Rebuilt on the next build. |
 
 Hugging Face cache locations can be overridden by `HF_HOME` or `HF_HUB_CACHE`.
 For a custom location, use the same `--cache-dir PATH` for listing, preview,
@@ -96,24 +99,44 @@ defaults read <bundle-id> | grep -i model
 lsof -c <AppName> | grep -E '\.(gguf|bin|mlx|safetensors)'
 ```
 
-Known: Cotypist (`~/Library/Application Support/app.cotypist.Cotypist/Models`,
-key `ModelRepository_selectedModel`), Google on-device models
-(`com.google.AIEdgeForesight`), and dictation apps (superwhisper, MacWhisper,
-FluidAudio), each with its own Whisper models.
+Dictation, autocomplete, and on-device AI apps often keep several models side
+by side. The selection is usually a preference key (e.g. Cotypist's
+`ModelRepository_selectedModel`).
 
 ## App caches
 
-Quit the app first. Logins and settings survive.
+Quit the app first. Logins and settings survive. Check every path against
+[Never delete](#never-delete).
 
-| App | Delete | Keep |
+| Kind | Delete | Keep |
 |---|---|---|
-| Spotify | `~/Library/Caches/com.spotify.client` | Offline downloads (location: `grep storage ~/Library/Application\ Support/Spotify/prefs`) |
-| Notion | `Partitions/notion/Service Worker/CacheStorage` and `Partitions/notion/Cache` in `~/Library/Application Support/Notion` | `IndexedDB`, `Local Storage`, `Cookies` |
-| Chrome-based profiles (incl. automation profiles in `~/.tmp`) | `<profile>/Default/Cache`, `<profile>/Default/Code Cache` | Rest of the profile |
-| Claude desktop | `~/Library/Application Support/Claude/vm_bundles` (Cowork VM, ~9 GB, re-downloads) | Everything else |
-| Codex | `~/.codex/.tmp` | Sessions and config |
-| Grok CLI | Old binaries in `~/.grok/downloads` | The target of `readlink ~/.grok/bin/grok` |
-| Claude Code CLI | Old versions in `~/.local/share/claude/versions` (~230 MB each) | The target of `readlink ~/.local/bin/claude` |
+| Electron and Chromium-based apps (`~/Library/Application Support/<App>`, and each `Partitions/<name>` inside it) | `Code Cache`, `GPUCache`, `DawnCache`, `GraphiteDawnCache`, `DawnGraphiteCache`, `DawnWebGPUCache`, `GrShaderCache`, `Crashpad/completed`, `Service Worker/CacheStorage`. `Cache` and `CachedData` only in a folder that also has one of the others | `IndexedDB`, `Local Storage`, `Cookies`, and everything else |
+| Chromium browser profiles (incl. automation profiles in `~/.tmp`) | `<profile>/Default/Cache`, `<profile>/Default/Code Cache` | Rest of the profile |
+| Firefox-based browsers | `~/Library/Caches/<browser>/Profiles/*` | The profile itself, in `~/Library/Application Support` |
+| Old engines inside a Chromium browser's app bundle | `<Browser>.app/Contents/Frameworks/*Framework.framework/Versions/<version>` | `Current` (`readlink` it) and any version newer than `Current`, which is a staged update |
+| App updater downloads | `~/Library/Caches/*-updater` | Nothing; the app re-downloads its next update |
+| Self-updating CLIs (e.g. `~/.local/share/claude/versions`, ~230 MB each; `~/.grok/downloads`) | Old entries in the CLI's `versions` or `downloads` folder | The target of `readlink` on the binary on PATH |
+| Tool temp folders | Contents of `~/.<tool>/.tmp` | The tool's sessions and config |
+| VM images and models an app re-downloads (e.g. `~/Library/Application Support/Claude/vm_bundles`, ~9 GB) | The unused bundle | Whatever the app has loaded; confirm it re-downloads first |
+
+## Never delete
+
+Deleting these loses data or breaks running apps:
+
+- `~/Library` data stores: `Keychains`, `Accounts`, `Mail`, `Contacts`,
+  `Mobile Documents` (iCloud Drive), and `Calendars`, whose agent holds its
+  database open, so deleting it crashes Calendar.
+- Compiled model caches: any `com.apple.e5rt.e5bundlecache` folder and the
+  folder directly holding it. Running apps lose on-device text and image
+  recognition until they restart.
+- Identity and telemetry queues with cache-like names
+  (`~/Library/Caches/GIPPseudonymousID`, `~/Library/Caches/CCTClearcutLogger`).
+  Deleting them while their owner runs starts an endless rewrite loop.
+- Caches that hold user content: offline music and downloaded media, AI chat
+  history, clipboard history. Layouts vary, so a missing offline marker proves
+  nothing; ask before clearing a media player's or launcher's cache.
+- Wallpaper and screen saver assets (`com.apple.idleassetsd`,
+  `com.apple.wallpaper`): user-chosen, and a large re-download.
 
 ## Homebrew taps
 

@@ -135,6 +135,7 @@ Offer these when the user wants more space. Each refills on demand.
 | npx packages | `npm cache npx ls`; `du -sh ~/.npm/_npx` | `npm cache npx rm --force` (or `rm <key>` for one) |
 | bun | `du -sh ~/.bun/install/cache` | `rm -rf ~/.bun/install/cache` (`bun pm cache rm` only runs inside a project) |
 | Yarn classic | `du -sh "$(yarn cache dir)"` | `yarn cache clean` |
+| node-gyp headers | `du -sh ~/Library/Caches/node-gyp` | `rm -rf ~/Library/Caches/node-gyp` |
 
 `~/.bun/install/global` holds globally installed bun tools, not cache: remove
 unused ones with `bun remove -g <pkg>`.
