@@ -89,13 +89,75 @@ class CleanNodeTests(ScriptTests):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn("Nothing to clean", result.stdout)
 
-    def test_empty_scan_saves_no_plan(self):
+    def test_empty_scan_saves_an_empty_plan(self):
         destination = self.base / "plan.json"
         result = self.clean("--plan", destination, self.root)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Nothing to clean", result.stdout)
+        self.assertIn("(no targets)", result.stdout)
         self.assertNotIn("total", result.stdout)
-        self.assertFalse(destination.exists())
+        self.assertEqual(json.loads(destination.read_text())["targets"], [])
+        deleted = self.clean("--delete", "--from-plan", destination)
+        self.assertEqual(deleted.returncode, 0, deleted.stderr)
+        self.assertIn("Deleted 0 folders.", deleted.stdout)
+
+    def test_only_selects_named_folder_types(self):
+        modules = self.target("project/node_modules")
+        build = self.target("project/.next")
+        cache = self.target("project/.turbo")
+        plan = self.plan("--only", "node_modules,.next")
+        self.assertEqual(json.loads(plan.read_text())["only"], [".next", "node_modules"])
+        result = self.clean("--delete", "--from-plan", plan)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(modules.exists())
+        self.assertFalse(build.exists())
+        self.assertTrue(cache.exists())
+
+    def test_only_is_repeatable_and_rejects_unknown_names(self):
+        self.target("project/node_modules")
+        cache = self.target("project/.turbo")
+        result = self.clean("--only", "node_modules", "--only", ".turbo", self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(str(cache), result.stdout)
+        for value in ("build", "node_modules,dist", ","):
+            with self.subTest(value=value):
+                result = self.clean("--only", value, self.root)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("Nothing to clean", result.stdout)
+
+    def test_only_never_descends_into_unselected_targets(self):
+        self.target("project/node_modules/package/.next")
+        result = self.clean("--only", ".next", self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Nothing to clean", result.stdout)
+
+    def test_skips_build_outputs_stores_and_hidden_tool_folders(self):
+        for relative in ("app/dist/client/node_modules", "calc/.output/server/node_modules",
+                         "app/.pnpm-store/v11/links/pkg/node_modules", "app/.opencode/node_modules",
+                         "showcase/.cache/copy/node_modules"):
+            self.target(relative)
+        build = self.target("app/.next")
+        result = self.clean(self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(str(build), result.stdout)
+        self.assertIn("(1 folders;", result.stdout)
+
+    def test_plan_rejects_unselected_names_and_skipped_parents(self):
+        self.target("project/node_modules")
+        plan = self.plan("--only", "node_modules")
+        data = json.loads(plan.read_text())
+        for relative in ("project/.next", "app/dist/node_modules", "app/.opencode/node_modules"):
+            with self.subTest(relative=relative):
+                extra = self.target(relative)
+                stat = extra.stat()
+                tampered = dict(data, targets=data["targets"] + [
+                    {"path": str(extra), "fingerprint": [stat.st_dev, stat.st_ino, stat.st_mtime_ns]}])
+                destination = self.base / f"tampered-{extra.parent.name}.json"
+                destination.write_text(json.dumps(tampered))
+                result = self.clean("--delete", "--from-plan", destination)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertTrue(extra.exists())
+                self.assertTrue((self.root / "project/node_modules").exists())
 
     def test_rejects_home_ancestors_and_tool_roots_including_aliases(self):
         global_root = self.home / ".bun/install/global"
@@ -293,7 +355,8 @@ class CleanNodeTests(ScriptTests):
     def test_plan_cannot_be_combined_with_scan_options(self):
         target = self.target()
         plan = self.plan()
-        for args in (("--days", "0"), (self.root,), ("--exclude", "project"), ("--plan", "other.json"), ("--prune-store",)):
+        for args in (("--days", "0"), (self.root,), ("--exclude", "project"), ("--only", "node_modules"),
+                     ("--plan", "other.json"), ("--prune-store",)):
             with self.subTest(args=args):
                 result = self.clean("--delete", "--from-plan", plan, *args)
                 self.assertNotEqual(result.returncode, 0)
@@ -410,7 +473,9 @@ class InspectionTests(ScriptTests):
         self.stub("df", '[ "$1" = "-k" ] || exit 2\necho "filesystem blocks used available capacity mounted"\necho "disk 1000 100 900 10% /System/Volumes/Data"\n')
         # du -k output (KiB<TAB>path) for a small home folder; logs each call.
         self.du_log = self.base / "du.log"
+        # System folders are measured with -s; answer those with one fixed row.
         self.stub("du", f'echo "$@" >> "{self.du_log}"\n'
+                  'case "$1" in -sxk) printf "%s\\t%s\\n" 1048576 /Applications; exit 0 ;; esac\n'
                   'printf "%s\\t%s\\n" 4096 "$HOME" 3072 "$HOME/Library" 2048 "$HOME/Library/Caches" \\\n'
                   '  1536 "$HOME/Library/Caches/big-cache" 512 "$HOME/Code" 100 "$HOME/.Trash"\n'
                   f"{du_exit}\n")
@@ -420,7 +485,8 @@ class InspectionTests(ScriptTests):
         self.overview_stubs()
         result = self.overview()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(self.du_log.read_text().splitlines()), 1)
+        calls = self.du_log.read_text().splitlines()
+        self.assertEqual(len([call for call in calls if str(self.home) in call]), 1)
         subfolders = result.stdout.split("== ~/Library subfolders")[1].split("==")[0]
         self.assertIn("big-cache", subfolders)
         self.assertNotIn(f"{self.home}/Library/Caches\n", subfolders)
@@ -442,6 +508,24 @@ class InspectionTests(ScriptTests):
         self.assertIn("big-cache", result.stdout)
         self.assertIn("Incomplete measurement", result.stderr)
         self.assertIn("Permission denied", result.stderr)
+
+    def test_overview_groups_privacy_blocked_paths_and_marks_their_rows(self):
+        self.overview_stubs(du_exit='for name in a b c; do echo "du: $HOME/Library/Caches/$name: Operation not permitted" >&2; done\nexit 1')
+        result = self.overview()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertRegex(result.stderr, r"3  ~/Library/Caches\n")
+        self.assertIn("Full Disk Access", result.stderr)
+        self.assertNotIn("Operation not permitted", result.stderr)
+        self.assertRegex(result.stdout, r"Library/Caches  \(incomplete: 3 unreadable\)")
+        self.assertNotRegex(result.stdout, r"Code  \(incomplete")
+
+    def test_overview_measures_system_folders_and_compares_with_used(self):
+        self.overview_stubs()
+        result = self.overview()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("== System folders", result.stdout)
+        # Home (4096 KiB) plus the stubbed 1 GiB system folder.
+        self.assertIn("1.0 GiB measured above", result.stdout)
 
     def test_overview_accepts_limited_output_without_pipeline_failure(self):
         self.overview_stubs()

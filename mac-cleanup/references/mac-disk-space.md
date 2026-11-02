@@ -22,6 +22,13 @@ of caches, local AI models, container images, and dependency folders.
   multi-select question works well).
 - Confirm a folder isn't the one in use (active model, current store, running
   app) before deleting it. Quit the app first: `pgrep -fl <App>.app`.
+- Check before labeling, not just before deleting: the user approves on the
+  "safe" or "regenerable" note, so verify it before showing the list.
+  Regenerable means nothing runs from the folder (`pgrep -fl "<folder>/"`), the
+  recipe to rebuild it exists (manifest or lockfile for the right tool), it
+  isn't git-tracked, and it holds no release artifacts. User content is safe
+  only once you've checked where the app keeps it. Unchecked items go in a
+  "check first" group.
 - Flag what can't come back: training checkpoints, Docker volumes, app
   databases, git-tracked files. Caches and downloaded models return on demand.
 - Prefer the tool's own command (`ollama rm`, `docker image prune`,
@@ -39,10 +46,15 @@ bash <skill-directory>/scripts/overview.sh [rows]
 ```
 
 Prints free space and the largest folders in `~`, `~/Library` and its main
-subfolders, `~/.cache`, `~/.local/share`, the Trash, and `docker system df`.
+subfolders, `~/.cache`, `~/.local/share`, the Trash, the system folders
+(`/Applications`, `/opt/homebrew`, `/Library`, `/private/var`), and
+`docker system df`, then how much of `df`'s used space all that explains.
 Allow a couple of minutes. Drill down with `du -xhd1 <dir> | sort -rh | head`.
-The overview returns nonzero and marks incomplete measurements when paths
-cannot be read. Don't present partial results as complete totals.
+The overview returns nonzero when parts of the home folder can't be read. It
+counts the unreadable paths per folder, marks each affected row
+`(incomplete: N unreadable)`, and says when Full Disk Access would help.
+System folders are always partly unreadable without root; only their rows are
+marked. Don't present partial results as complete totals.
 
 **Free-space change.** Record the Available column of
 `df -k /System/Volumes/Data` before and after cleanup. Subtract those KiB values
@@ -55,9 +67,19 @@ Don't infer an exact System Settings Documents total by subtracting a few
 folders from home usage. Report the measured paths separately from any category
 figure observed in Settings.
 
+**Unexplained used space.** When the "Measured vs used" line shows a large
+gap, report it as a finding, not as "system files". A tiny size for a
+privacy-protected folder (`~/Library/Containers`, `Group Containers`, Photos,
+Music) means unmeasured, not small: name those folders and suggest granting
+the terminal Full Disk Access to measure them.
+
 **`du` and hard links.** `du` counts a hard-linked file once per invocation, so
 pnpm projects measure differently depending on what else is in the same call.
 Re-measure a suspicious folder alone with `du -sh`.
+
+**`du` and APFS clones.** `du` counts every clone in full (VM base and clone
+chains, `cp -c` copies), so their sizes don't add up and deleting one frees
+only the blocks it doesn't share. Don't promise freed space for clones.
 
 ## Usual suspects
 
@@ -70,6 +92,9 @@ Re-measure a suspicious folder alone with `du -sh`.
 | Hugging Face (`~/.cache/huggingface`) | `hf cache ls` | Preview `hf cache rm <id> --dry-run`; after approval, `hf cache rm <id> --yes` | Use the exact IDs and cache directory reviewed. Let the CLI manage snapshot/blob references. |
 | Other `~/.cache` | `du -xhd1 ~/.cache` | Delete folders of tools no longer used | Training outputs here are not re-downloadable. |
 | JS folders and package caches | — | See `SKILL.md` | — |
+| Non-JS build output in projects (`.build`, `build`, `.venv`/`venv`, `target`, `Pods`, `.gradle`, `DerivedData`) | `find <root> -maxdepth 4 -type d \( -name .build -o -name build -o -name .venv -o -name venv -o -name target -o -name Pods -o -name .gradle -o -name DerivedData \) -prune -print`, then `du -sh` each | `rm -rf` the approved folders | Check each per the ground rules: `pgrep -fl "<folder>/"` (apps often run from `build`), `git ls-files <folder>`, no `.xcarchive`, `dmg`, or `export` release output, and a manifest for the right tool (`uv.lock`/`pyproject.toml` → `uv sync`, `poetry.lock` → `poetry install`). A venv with no manifest can't be rebuilt; save `uv pip freeze` first. |
+| Lume VMs (`~/.lume/<name>`) | `lume ls`; read any `HANDOFF.md` or README in `~/.lume` | `lume delete <name>`, not `rm` | Needs a full rebuild to come back. Bases built with `lume clone` share disk with their source (see `du` and APFS clones), so `du` overstates what deleting one frees; see the macos-vm-sandbox skill. |
+| Arduino (`~/Library/Arduino15`) | `du -xhd1 ~/Library/Arduino15` | `packages/` (board cores and toolchains) and `staging/` (downloaded installers) | Check `pgrep -fli arduino` first. Keep `arduino-cli.yaml`, `inventory.yaml`, and the `*_index.json*` files. Restore with Boards Manager or `arduino-cli core install <core>`. |
 | mise download cache (`mise cache path`) | `du -sh "$(mise cache path)"`, `mise cache prune --dry-run` | `mise cache prune` (files older than `cache_prune_age`) or `mise cache clear` (everything) | Separate from `mise prune`, which removes unused runtimes. |
 | uv cache (`uv cache dir`) | `du -sh "$(uv cache dir)"` | `uv cache prune` (unused entries) or `uv cache clean` (everything) | Refills on the next `uv` install or run. `prune` often frees only a fraction. |
 | pip, Go modules, Cargo registry | `du -sh ~/Library/Caches/pip ~/go/pkg/mod ~/.cargo/registry` | `pip cache purge`; `go clean -modcache`; `rm -rf ~/.cargo/registry/{cache,src}` | Usually small. Keep `~/.cargo/registry/index` and `~/.cargo/bin`. |
@@ -116,6 +141,7 @@ Quit the app first. Logins and settings survive. Check every path against
 | Old engines inside a Chromium browser's app bundle | `<Browser>.app/Contents/Frameworks/*Framework.framework/Versions/<version>` | `Current` (`readlink` it) and any version newer than `Current`, which is a staged update |
 | App updater downloads | `~/Library/Caches/*-updater` | Nothing; the app re-downloads its next update |
 | Self-updating CLIs (e.g. `~/.local/share/claude/versions`, ~230 MB each; `~/.grok/downloads`) | Old entries in the CLI's `versions` or `downloads` folder | The target of `readlink` on the binary on PATH |
+| Claude Code plugin versions (`~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`) | Versions not listed by `jq -r '.plugins[][].installPath' ~/.claude/plugins/installed_plugins.json`, only while no other Claude session runs | Every listed `installPath`; running sessions load skills and scripts from their version's path |
 | Tool temp folders | Contents of `~/.<tool>/.tmp` | The tool's sessions and config |
 | VM images and models an app re-downloads (e.g. `~/Library/Application Support/Claude/vm_bundles`, ~9 GB) | The unused bundle | Whatever the app has loaded; confirm it re-downloads first |
 

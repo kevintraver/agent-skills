@@ -20,6 +20,7 @@ clean-node --days 30 --plan plan.json     # save a list of what would go (delete
 clean-node --from-plan plan.json          # look at that list again
 clean-node --delete --from-plan plan.json # delete exactly what's on the list
 clean-node ~/Projects                     # look somewhere other than ~/Code
+clean-node --only node_modules,.next      # only these kinds of folder
 ```
 
 It only deletes what's on a list you've already seen. If anything on the list
@@ -34,6 +35,9 @@ working on keep their dependencies. It's a rough guide, not a guarantee.
 - Your home folder as a whole, or folders where tools are installed (Neovim,
   bun, mise, editor extensions). It refuses to run there.
 - Anything in Git, and `.yarn`, `dist`, `.vercel`, `.expo`.
+- Anything inside `dist`, `.output`, `.pnpm-store`, or a hidden folder in a
+  project (like `.opencode` or `.cache`). A `node_modules` in there belongs to
+  a build or a tool, not to your project.
 
 If it can't check something safely, it stops instead of guessing.
 
@@ -41,7 +45,8 @@ If it can't check something safely, it stops instead of guessing.
 
 When that isn't enough, the agent can also clean up Docker, AI models, app
 caches, old Node versions, and Homebrew. `scripts/overview.sh` shows where the
-space is going.
+space is going, including folders outside your home folder and folders macOS
+wouldn't let it read.
 
 ## What's here
 
