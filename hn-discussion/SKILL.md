@@ -36,6 +36,12 @@ The script prints JSON:
 
 Options: `--hours N` for another ranking window, `--top N` for a longer `top` list, `--out PATH` to choose the file.
 
+If the script fails, say what failed instead of answering from memory:
+
+- `HN item not found: …`: the ID or URL is wrong or the item was removed. Check it with the user.
+- `No HN stories found for title: …`: try a shorter, distinctive part of the title, or ask for the link.
+- A network error (the script already retried 3 times): the HN API or HN Search is unreachable. Retry once, then report it. Don't write your own fetch code or scrape the HN page instead.
+
 ## 2. Read every comment
 
 Read `comments_file` to the last line, paging with offset/limit if it is large. Confirm the lines read equal `file_lines` before analyzing; never summarize a partial read. `live_comments` can differ slightly from `story.comments` in either direction, because HN's stored count lags behind the live tree. That's expected.
