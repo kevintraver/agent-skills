@@ -49,6 +49,8 @@ SSH_AUTH_SOCK=~/Library/Group\ Containers/2BUA8C4S2C.com.1password/t/agent.sock 
 
 Without 1Password, use a key on disk loaded into the macOS SSH agent: `ssh-keygen -t ed25519 -f ~/.ssh/lume_sandbox && ssh-add --apple-use-keychain ~/.ssh/lume_sandbox`.
 
+To keep VM runs from waiting on an agent approval, point `$LUME_SANDBOX_PUBKEY` at a private key file instead: `sbx` passes it to `ssh -i` directly. Use a passphrase-free key that only the sandbox VMs accept, and turn the agent off for the VMs' addresses in `~/.ssh/config` (`Host 192.168.64.*` with `IdentityAgent none`).
+
 With 1Password, pick a vault its SSH agent serves. By default that's only the Personal/Private vault, unless `~/.config/1Password/ssh/agent.toml` lists others. A key in any other vault fails silently, and the `ssh-add -L` check catches that. The first SSH use from each app triggers a 1Password approval prompt.
 
 Install the key in the guest (`lume ssh` takes the command as an argument; stdin is dropped):

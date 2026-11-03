@@ -12,8 +12,11 @@
 #   sbx pane <vm> <accessibility|input-monitoring|screen-recording|automation>
 #                                      open that Privacy & Security pane in the guest
 #
-# SSH uses the public key at $LUME_SANDBOX_PUBKEY (default ~/.ssh/lume_sandbox.pub);
-# the private key is expected in an SSH agent (e.g. 1Password), never on disk.
+# SSH uses the key at $LUME_SANDBOX_PUBKEY (default ~/.ssh/lume_sandbox.pub). A public key
+# means its private half is in an SSH agent (e.g. 1Password); a private key file is
+# used directly, which keeps VM runs from waiting on the agent. For that, use a
+# passphrase-free key only the sandbox VMs accept, and turn the agent off for the
+# VMs' addresses (192.168.64.*) in ~/.ssh/config.
 # up/boot wait $SBX_SSH_WAIT seconds (default 300) for SSH; two clones booting
 # at once each take longer than one alone.
 set -euo pipefail
