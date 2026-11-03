@@ -34,6 +34,14 @@ Word for word, keeping its structure (paragraphs, bullets, bold, code), with no 
 
 Check the result: nothing clipped, even gaps, nothing wrongly removed, no unmentioned edit, covered text unreadable, and text matching word for word. Save a new PNG where the user will find it, never over the original or only in a temporary folder, give the full path, and copy it to the clipboard if possible, saying so.
 
+## Example
+
+"Clean this up so I can send it to Justin", with a phone screenshot of a three-message chat: status bar on top, empty space below, and a phone number in the first message.
+
+- Result: the three messages cropped tight with the status bar and empty space gone, the phone number pixelated, on a rounded card with a transparent background, saved as a new PNG next to the original.
+- Reply: the full path; what the crop removed (status bar, empty space); that the phone number is covered; an offer to also cover the sender's name; and whether it's on the clipboard.
+- Not done: the messages keep their wording, including any odd characters or broken emoji; no message is rewritten or re-rendered.
+
 ## Rules
 
 - Never invent or reword text, and in a screenshot don't fix typos, even when asked.
