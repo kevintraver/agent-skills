@@ -36,7 +36,7 @@ Check the result: nothing clipped, even gaps, nothing wrongly removed, no unment
 
 ## Example
 
-"Clean this up so I can send it to Justin", with a phone screenshot of a three-message chat: status bar on top, empty space below, and a phone number in the first message.
+"Clean this up so I can share it", with a phone screenshot of a three-message chat: status bar on top, empty space below, and a phone number in the first message.
 
 - Result: the three messages cropped tight with the status bar and empty space gone, the phone number pixelated, on a rounded card with a transparent background, saved as a new PNG next to the original.
 - Reply: the full path; what the crop removed (status bar, empty space); that the phone number is covered; an offer to also cover the sender's name; and whether it's on the clipboard.

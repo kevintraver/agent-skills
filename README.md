@@ -1,6 +1,6 @@
 # agent-skills
 
-Agent skills by Kevin Traver. Install one with
+Agent skills. Install one with
 `npx skills add kevintraver/agent-skills --skill <name>`.
 
 Each skill's instructions for the agent live in its `SKILL.md`. Notes for people
