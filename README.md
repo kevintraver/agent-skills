@@ -1,10 +1,18 @@
-# mac-cleanup
+# agent-skills
+
+Agent skills by Kevin Traver. Install one with
+`npx skills add kevintraver/agent-skills --skill <name>`.
+
+Each skill's instructions for the agent live in its `SKILL.md`. Notes for people
+live here, because a skill folder must not contain a README.md.
+
+## mac-cleanup
 
 Frees up disk space on your Mac. Mostly that means deleting `node_modules` and
 `.next` folders from your JS projects. They get big, and they come back when you
 run `pnpm install` or start the app.
 
-## Using it
+### Using it
 
 Ask your agent something like "clean up my node_modules". It will:
 
@@ -30,7 +38,7 @@ changed since, it stops.
 working on keep their dependencies. It's a rough guide, not a guarantee.
 `--exclude <folder>` leaves a project out.
 
-## What it won't touch
+### What it won't touch
 
 - Your home folder as a whole, or folders where tools are installed (Neovim,
   bun, mise, editor extensions). It refuses to run there.
@@ -41,19 +49,19 @@ working on keep their dependencies. It's a rough guide, not a guarantee.
 
 If it can't check something safely, it stops instead of guessing.
 
-## Beyond JS folders
+### Beyond JS folders
 
 When that isn't enough, the agent can also clean up Docker, AI models, app
-caches, old Node versions, and Homebrew. `scripts/overview.sh` shows where the
+caches, old Node versions, and Homebrew. `mac-cleanup/scripts/overview.sh` shows where the
 space is going, including folders outside your home folder and folders macOS
 wouldn't let it read.
 
-## What's here
+### What's here
 
-- `SKILL.md`: instructions for the agent.
-- `references/mac-disk-space.md`: the rest-of-the-Mac cleanup guide.
-- `scripts/clean-node`: the cleanup script (Python 3.9+).
-- `scripts/overview.sh`: disk usage breakdown.
-- `scripts/unused-taps.sh`: Homebrew taps you no longer use.
-- `tests/`: tests for `clean-node`. From this folder, run
+- `mac-cleanup/SKILL.md`: instructions for the agent.
+- `mac-cleanup/references/mac-disk-space.md`: the rest-of-the-Mac cleanup guide.
+- `mac-cleanup/scripts/clean-node`: the cleanup script (Python 3.9+).
+- `mac-cleanup/scripts/overview.sh`: disk usage breakdown.
+- `mac-cleanup/scripts/unused-taps.sh`: Homebrew taps you no longer use.
+- `mac-cleanup/tests/`: tests for `clean-node`. From `mac-cleanup/`, run
   `python3 -m unittest discover -s tests`.
