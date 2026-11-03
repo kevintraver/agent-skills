@@ -1,6 +1,6 @@
 ---
 name: mac-cleanup
-description: Free disk space on the user's Mac, mainly by deleting node_modules, .next, .turbo, and other regenerable JS dependency and build folders across project directories with the bundled clean-node script. Use when the user asks to clean up node_modules or .next folders, clear out old or inactive JS projects, or reclaim space used by ~/Code or package-manager caches (pnpm, npm, bun, Yarn). Also use when the Mac is low on storage or System Settings shows a huge Documents or System Data figure, and for Docker/OrbStack, local AI models, app caches, old runtimes, or unused Homebrew taps.
+description: Free disk space on the user's Mac, mainly by deleting node_modules, .next, .turbo, and other regenerable JS dependency and build folders across project directories with the bundled clean-node script. Use when the user asks to clean up node_modules or .next folders, clear out old or inactive JS projects, or reclaim space used by ~/Code or package-manager caches (pnpm, npm, bun, Yarn). Also use when the Mac is low on storage, when the user asks what is using their disk space or whether a specific cache or folder is safe to delete, or when System Settings shows a huge Documents or System Data figure, and for Xcode DerivedData and simulators, Docker/OrbStack, local AI models, app caches, old runtimes, or unused Homebrew taps.
 ---
 
 # Mac Cleanup
