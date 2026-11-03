@@ -20,6 +20,13 @@ Expert knowledge for managing tasks with Todoist CLI (`td`) and MCP tools.
 - Complex searches with multiple filters
 - When working in an AI-assisted context
 
+## When a Call Fails
+
+- **`td: command not found`**: the CLI is the npm package `@doist/todoist-cli` (`npm install -g @doist/todoist-cli`). Use the MCP tools meanwhile if they're available.
+- **CLI auth error**: run `td auth status`. `td auth login` opens a browser, so ask the user to run it. Never ask for the API token in chat or print it.
+- **MCP tools missing or unauthorized**: the Todoist connector isn't connected. Use the CLI, or ask the user to reconnect Todoist.
+- **A write fails or times out**: it may have gone through anyway. Search for the task before adding it again, so it isn't duplicated.
+
 ## Expert Knowledge
 
 ### dueString vs deadlineDate — The Critical Difference
