@@ -1,6 +1,6 @@
 ---
 name: adguard-dns
-description: Inspect and manage an AdGuard DNS (adguard-dns.io private DNS) account through its API — find which domains were blocked, search the DNS query log, list devices and DNS servers, and add or remove allow/block user rules. Use when the user mentions AdGuard DNS, or when a website, app, or streaming service isn't working and AdGuard DNS may be blocking it ("Netflix won't load", "what got blocked?", "unblock this domain", "whitelist X", "block X").
+description: Inspect and manage an AdGuard DNS (adguard-dns.io private DNS) account through its API — find which domains were blocked, search the DNS query log, list devices and DNS servers, add or remove allow/block user rules, and reach a blocked site for a task without unblocking it. Use when the user mentions AdGuard DNS, when a website, app, or streaming service isn't working and AdGuard DNS may be blocking it ("Netflix won't load", "what got blocked?", "unblock this domain", "whitelist X", "block X"), or when a public website fails to load during a task, not localhost, with ERR_CONNECTION_REFUSED, ERR_NAME_NOT_RESOLVED, or a similar connection error.
 ---
 
 # AdGuard DNS
@@ -11,15 +11,15 @@ Use the bundled CLI, resolving its path relative to this skill directory:
 python3 <skill-directory>/scripts/adguard.py <command> [--json] [--server ID] ...
 ```
 
-| Command | Purpose |
-|---------|---------|
-| `blocked [--minutes 15 \| --from T [--to T]] [--search X] [--device NAME]` | Blocked queries grouped by root domain, with subdomains, counts, devices and what blocked them |
-| `log [--minutes 15 \| --from T [--to T]] [--search X] [--status S] [--device NAME] [--limit 200]` | Raw query log, newest first |
-| `rules [--search X]` | List the DNS server's user rules |
-| `allow DOMAIN... [--exact] [--dry-run]` | Add `@@\|\|domain^` allow rules |
-| `block DOMAIN... [--exact] [--dry-run]` | Add `\|\|domain^` block rules |
-| `remove-rule RULE... [--dry-run]` | Remove user rules by exact text |
-| `servers`, `devices` | List DNS servers (IDs, default) and devices |
+| Command                                                                                           | Purpose                                                                                        |
+| ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `blocked [--minutes 15 \| --from T [--to T]] [--search X] [--device NAME]`                        | Blocked queries grouped by root domain, with subdomains, counts, devices and what blocked them |
+| `log [--minutes 15 \| --from T [--to T]] [--search X] [--status S] [--device NAME] [--limit 200]` | Raw query log, newest first                                                                    |
+| `rules [--search X]`                                                                              | List the DNS server's user rules                                                               |
+| `allow DOMAIN... [--exact] [--dry-run]`                                                           | Add `@@\|\|domain^` allow rules                                                                |
+| `block DOMAIN... [--exact] [--dry-run]`                                                           | Add `\|\|domain^` block rules                                                                  |
+| `remove-rule RULE... [--dry-run]`                                                                 | Remove user rules by exact text                                                                |
+| `servers`, `devices`                                                                              | List DNS servers (IDs, default) and devices                                                    |
 
 Pass `--json` for structured output. Requires only Python 3.9+.
 
@@ -48,6 +48,22 @@ Pass `--json` for structured output. Requires only Python 3.9+.
 2. Present the results grouped by root domain. Separate likely culprits (the service's own domains, its CDN, auth or API hosts) from noise (ads, trackers, analytics), which blocks on every page load and is rarely the cause.
 3. Ask which to unblock and confirm before running `allow`. Rule changes apply to every device on that DNS server. Use `--dry-run` to preview when it is unclear what will change.
 4. After unblocking, tell the user that clients cache DNS. Changes can take a minute or two; restarting the app or flushing the cache helps (macOS: `sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder`).
+
+## Reaching a blocked site without unblocking it
+
+If a public site won't load in agent-browser, AdGuard DNS may be blocking it. Check with `blocked --minutes 15 --search <root domain>`. If it is, tell the user AdGuard DNS blocked it, give the reason, and ask what to do. If they want to continue, use the override for that domain only.
+
+### Local override in agent-browser
+
+Look up each hostname's IP with a public resolver such as 1.1.1.1, then use a dedicated session and export the rule in every shell call that touches it. Add a `MAP` for each hostname, comma-separated.
+
+```bash
+export AGENT_BROWSER_ARGS="--host-resolver-rules=MAP www.example.com 203.0.113.10"
+agent-browser --session adguard-bypass open https://www.example.com/
+agent-browser --session adguard-bypass get url
+# when the task is done
+agent-browser --session adguard-bypass close
+```
 
 ## Rule behavior
 
