@@ -15,7 +15,7 @@ rejects GIF output with `invalid openai provider options`.
 1. Write a prompt that describes the subject, one simple motion, and how it
    returns to its starting pose, so the loop is seamless.
 
-2. Generate the GIF in zsh or bash:
+2. Generate the GIF:
 
    ```bash
    ai image "A robot waves, then returns to its starting pose. Smooth loop." \
