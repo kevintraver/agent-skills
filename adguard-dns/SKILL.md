@@ -51,7 +51,7 @@ Pass `--json` for structured output. Requires only Python 3.9+.
 
 ## Reaching a blocked site without unblocking it
 
-If a public site won't load in agent-browser, AdGuard DNS may be blocking it. Check with `blocked --minutes 15 --search <root domain>`. If it is, tell the user AdGuard DNS blocked it, give the reason, and ask what to do. If they want to continue, use the override for that domain only.
+If a public site won't load in agent-browser, AdGuard DNS may be blocking it. Check with `blocked --minutes 15 --search <root domain>`. If it is, tell the user AdGuard DNS blocked it, give the reason, and ask what to do, without recommending an option. If they want to continue, use the override for that domain only.
 
 ### Local override in agent-browser
 
