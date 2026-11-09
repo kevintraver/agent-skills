@@ -1,6 +1,6 @@
 ---
 name: cleanup-screenshot
-description: Turn a screenshot (usually a chat) into a clean, shareable image on a card, with cropping, clutter and other removals, and private details pixelated. Use when asked to clean up, tidy, crop, redact, or make shareable a screenshot or text.
+description: Turn a screenshot (usually a chat), or pasted text with no image, into a clean, shareable image on a bordered card, with cropping, clutter and other removals, and private details pixelated. Use when asked to clean up, tidy, crop, redact, or make shareable a screenshot, or to turn pasted text into a shareable image.
 ---
 
 # Clean up a screenshot
@@ -18,7 +18,7 @@ Edit the original for crops, covers, clutter, and whole-message removals; anythi
 - **Clutter removed**, without asking: everything but the messages and who sent them, such as app and window chrome, timestamps and date lines, read receipts, reactions, status labels and badges, typing and unread markers, app notices, popups, and capture leftovers (hover toolbar or highlight, selection, cursor). Edit it out when that leaves no trace, otherwise recreate. Go with your best guess about what counts, ask when unsure, and list what went.
 - **Regrouping, offered:** when messages lose their sender's name and picture, offer to regroup them under the sender.
 - **Private details:** always cover email addresses, phone numbers, street addresses, and account or order numbers unless told to keep them, and list each one. Offer to cover other personal information (names, avatars, places). Pixelate so coarsely that text can't be recovered (solid blocks on request): the whole bubble, tail included, if the whole message is private; otherwise just the private part.
-- **Card:** rounded corners and even padding, on a transparent background. A requested background matches the theme, slightly darker, or slightly lighter when the chat is black.
+- **Card:** on a transparent background, with rounded corners, even padding, and a thin, subtle border a shade darker than the card (a shade lighter on a dark card) so its edge shows on any background. A requested background matches the theme, slightly darker, or slightly lighter when the chat is black.
 - **Compact layout, offered** for very wide screenshots: bring each side's messages in to the longest message's width, keeping vertical spacing unchanged.
 - **Size:** fit any target size; never enlarge past the source.
 
@@ -28,7 +28,7 @@ Same treatment, with the subject in place of the conversation: crop to the compl
 
 ## From text
 
-Word for word, keeping its structure (paragraphs, bullets, bold, code), with no title or caption unless asked. When two or more paragraphs start with a short label and a colon, make those a bulleted list with bold labels. Plain sans-serif, comfortable line length, light theme unless asked, sharp at high resolution. Private details, card, and size apply.
+When the user pastes or types text with no image, render it as an image. Word for word, keeping its structure (paragraphs, bullets, bold, code), with no title or caption unless asked. When two or more paragraphs start with a short label and a colon, make those a bulleted list with bold labels. Plain sans-serif, comfortable line length, light theme unless asked, sharp at high resolution. Private details, card, and size apply.
 
 ## Delivery
 
