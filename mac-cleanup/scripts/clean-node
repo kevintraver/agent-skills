@@ -78,9 +78,16 @@ def walk_error(error):
     raise error
 
 
+def is_git_directory(names):
+    # A bare clone has HEAD beside objects and refs; a linked worktree's Git
+    # directory has HEAD beside commondir or gitdir and may hold no objects.
+    return "HEAD" in names and ({"objects", "refs"} <= names or "commondir" in names or "gitdir" in names)
+
+
 def contains_repository(path):
     for _, directories, files in os.walk(path, onerror=walk_error, followlinks=False):
-        if ".git" in directories or ".git" in files:
+        names = set(directories) | set(files)
+        if ".git" in names or is_git_directory(names):
             return True
     return False
 

@@ -53,7 +53,8 @@ clean-node --delete --from-plan FILE    # apply only after approval
   can leave that timestamp unchanged.
 - Rejects home, ancestors of home, and known tool-installation roots, including
   symlink aliases. Does not follow symlinks while scanning.
-- Skips folders containing Git repositories or git-tracked files. Inspection
+- Skips folders containing git-tracked files or a Git repository at any depth,
+  including bare clones and linked-worktree Git folders. Inspection
   and measurement errors abort the command; they never mean "nothing to clean".
 - Store pruning is opt-in: add `--prune-store` when creating a plan. The preview
   shows the shared store path, size, and broader scope. Deletion checks that
@@ -164,7 +165,7 @@ Offer these when the user wants more space. Each refills on demand.
 | pnpm metadata, current | `pnpm cache list [glob]` | `pnpm cache delete <pattern>` |
 | npm | `du -sh ~/.npm/_cacache`; `npm cache verify` garbage-collects first | `npm cache clean --force` |
 | npx packages | `npm cache npx ls`; `du -sh ~/.npm/_npx` | `npm cache npx rm --force` (or `rm <key>` for one) |
-| bun | `du -sh ~/.bun/install/cache` | `rm -rf ~/.bun/install/cache` (`bun pm cache rm` only runs inside a project) |
+| bun | `du -sh "$(bun pm cache)"` | `bun pm cache prune` (Bun 1.4.4+; removes packages older than 30 days). Not `rm -rf` or `bun pm cache rm`: both delete the global store (`links/`) that projects with `globalStore = true` link to |
 | Yarn classic | `du -sh "$(yarn cache dir)"` | `yarn cache clean` |
 | node-gyp headers | `du -sh ~/Library/Caches/node-gyp` | `rm -rf ~/Library/Caches/node-gyp` |
 

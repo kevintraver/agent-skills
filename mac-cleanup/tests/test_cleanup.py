@@ -81,6 +81,17 @@ class CleanNodeTests(ScriptTests):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Nothing to clean", result.stdout)
 
+    def test_skips_bare_clones_and_worktree_git_directories(self):
+        bare = self.target("bare/node_modules") / "dep.git"
+        self.assertEqual(self.command("git", "init", "-q", "--bare", str(bare)).returncode, 0)
+        linked = self.target("linked/.turbo") / "worktree-git"
+        linked.mkdir()
+        (linked / "HEAD").write_text("ref: refs/heads/main\n")
+        (linked / "commondir").write_text("../..\n")
+        result = self.clean(self.root)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Nothing to clean", result.stdout)
+
     def test_git_failure_aborts_scan(self):
         target = self.target()
         self.init_repo(self.root, target / "fixture.txt")
