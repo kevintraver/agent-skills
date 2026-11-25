@@ -52,7 +52,7 @@ While reading them, glance at `submitted/` for rows with the same date, hours, a
 
 **Rate**: the client's established hourly rate (see Client and sender details).
 
-**Invoice number**: sequential `INV-YYYY-NNN`. Check existing `Invoice_*.pdf` filenames in the client folder (and `submitted/`) to find the last one used.
+**Invoice number**: sequential `INV-YYYY-NNN`. Check existing `Invoice_*.pdf` filenames in the client folder (and `submitted/`) to find the last one used. Some users delete the PDFs once sent (they keep a copy in their email), so when no PDF is left, take the last number from the user's local notes or memory. After generating an invoice, record its number there, so the next one doesn't depend on the PDF still existing.
 
 **Filename**: `Invoice_<CLIENT>_<YYYYMMDD>.pdf`, dated the day it's sent.
 
