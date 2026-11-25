@@ -113,7 +113,14 @@ submitted, and act on the answer:
 Don't archive on your own: the client root is the unbilled pile, and moving a
 period that was never invoiced is what makes hours go unbilled.
 
-**Descriptions** appear on the client's invoice. Write a few plain words naming the feature or area of work ("Checkout redesign", "Search performance fixes"), never tools, scripts, file names, PR numbers, or step-by-step verbs. If the user doesn't give one, derive it from the work in the conversation or recent commits at that same level of generality, and show them what you wrote.
+**Descriptions** appear on the client's invoice. Name the area, then a short list of what improved, in plain words: "Area improvements: a, b, c and d" (e.g. "Checkout improvements: faster load, saved carts, clearer payment errors and address validation"). A bare area name ("Checkout fixes") is too thin; mechanism ("Generating catalog images") is too specific. Never tools, scripts, file names, PR numbers, or step-by-step verbs. Several areas in one day get one entry each, or one entry joined with `; `.
+
+If the user doesn't give a description, gather the whole day's work before writing it. The current conversation usually holds only part of it:
+
+- The user's other agent threads from that day, when a thread tool is available (e.g. T3's thread list or search).
+- Commits and PRs merged that day in the client's repo (`git log --since`, `gh pr list --state merged`).
+
+Write from the outcomes, and show the user what you wrote before saving.
 
 When they correct a day's total ("I only worked 6 hours on the 12th"), adjust the existing rows rather than appending a correction row. If the day has several entries, trimming the largest is usually right — but say which row you changed and what the new grand total is, since a correction that silently preserves the total may not be what they meant.
 
